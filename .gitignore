@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+media/
+staticfiles/
+openapi-check.yaml
+*.sqlite3
+.pytest_cache/
