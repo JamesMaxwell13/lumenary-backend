@@ -141,11 +141,12 @@ class PublicApiTests(TestCase):
         self.assertEqual(response.data["attributes"][0]["slug"], "mount")
 
     def test_contact_lead_creates_skipped_notification_without_telegram_settings(self):
-        response = self.client.post(
-            "/api/v1/leads/",
-            {"name": "Ada", "phone": "+375291234567", "email": "ada@example.com", "message": "Hello"},
-            format="json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/leads/",
+                {"name": "Ada", "phone": "+375291234567", "email": "ada@example.com", "message": "Hello"},
+                format="json",
+            )
 
         self.assertEqual(response.status_code, 201)
         event = NotificationEvent.objects.get()
@@ -162,15 +163,16 @@ class PublicApiTests(TestCase):
             publication_status=RentalPublishStatus.DRAFT,
         )
 
-        success_response = self.client.post(
-            "/api/v1/rental/leads/",
-            {
-                "name": "Ada",
-                "phone": "+375291234567",
-                "items": [{"rental_item": published.slug, "quantity": 2}],
-            },
-            format="json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            success_response = self.client.post(
+                "/api/v1/rental/leads/",
+                {
+                    "name": "Ada",
+                    "phone": "+375291234567",
+                    "items": [{"rental_item": published.slug, "quantity": 2}],
+                },
+                format="json",
+            )
         self.assertEqual(success_response.status_code, 201)
 
         rejected_response = self.client.post(

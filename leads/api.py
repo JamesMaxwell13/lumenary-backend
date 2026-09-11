@@ -8,10 +8,17 @@ from rental.models import RentalItem
 class RentalLeadItemInputSerializer(serializers.Serializer):
     rental_item = serializers.SlugRelatedField(
         slug_field="slug",
-        queryset=RentalItem.objects.published().filter(is_active=True, category__is_active=True),
+        queryset=RentalItem.objects.none(),
     )
     quantity = serializers.IntegerField(min_value=1, default=1)
     comment = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["rental_item"].queryset = RentalItem.objects.published().filter(
+            is_active=True,
+            category__is_active=True,
+        )
 
 
 class LeadCreateSerializer(serializers.ModelSerializer):
