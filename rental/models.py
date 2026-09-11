@@ -7,7 +7,6 @@ from treebeard.mp_tree import MP_Node
 from wagtail.admin.panels import FieldPanel, InlinePanel, MultiFieldPanel
 from wagtail.images import get_image_model_string
 from wagtail.models import Orderable
-from wagtail.snippets.models import register_snippet
 
 
 class PublishStatus(models.TextChoices):
@@ -27,7 +26,6 @@ class AttributeType(models.TextChoices):
     CHOICE = "choice", "Choice"
 
 
-@register_snippet
 class RentalCategory(MP_Node):
     title = models.CharField("Title", max_length=160)
     slug = models.SlugField("Slug", unique=True)
@@ -56,7 +54,6 @@ class PublishedRentalItemQuerySet(models.QuerySet):
         return self.filter(publication_status=PublishStatus.PUBLISHED, published_at__lte=timezone.now())
 
 
-@register_snippet
 class RentalItem(ClusterableModel, models.Model):
     category = models.ForeignKey(
         RentalCategory,
@@ -168,7 +165,6 @@ class RentalItemImage(Orderable):
         verbose_name_plural = "rental gallery"
 
 
-@register_snippet
 class RentalAttribute(models.Model):
     name = models.CharField("Name", max_length=160)
     slug = models.SlugField("Slug", unique=True)

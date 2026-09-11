@@ -1,11 +1,13 @@
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from notifications.models import NotificationEvent, NotificationStatus
+from leads.models import Lead
 from projects.models import Project, ProjectCategory, PublishStatus as ProjectPublishStatus
 from rental.models import (
     AttributeType,
@@ -17,6 +19,9 @@ from rental.models import (
     RentalStatus,
 )
 from services.models import ServiceBlock
+from wagtail.snippets.models import get_snippet_models
+
+from cms.wagtail_hooks import RentalCategoryForm
 
 
 TEST_CACHES = {
@@ -38,7 +43,7 @@ class PublicApiTests(TestCase):
         cache.clear()
         self.client = APIClient()
 
-    def test_services_page_is_cached(self):
+    def test_services_page_cache_is_invalidated_when_content_changes(self):
         ServiceBlock.objects.create(title="Preproduction", text="Planning", sort_order=1, is_active=True)
 
         first_response = self.client.get("/api/v1/pages/services/")
@@ -49,7 +54,48 @@ class PublicApiTests(TestCase):
         second_response = self.client.get("/api/v1/pages/services/")
 
         self.assertEqual(second_response.status_code, 200)
-        self.assertEqual(len(second_response.data["items"]), 1)
+        self.assertEqual(len(second_response.data["items"]), 2)
+
+    def test_wagtail_registers_content_snippets_only(self):
+        snippet_models = set(get_snippet_models())
+        self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute} <= snippet_models)
+        self.assertNotIn(Lead, snippet_models)
+        self.assertNotIn(NotificationEvent, snippet_models)
+
+    def test_content_snippet_indexes_are_available_to_superuser(self):
+        user = get_user_model().objects.create_superuser(
+            username="editor",
+            email="editor@example.com",
+            password="test-password",
+        )
+        self.client.force_login(user)
+        for model in (ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute):
+            with self.subTest(model=model.__name__):
+                response = self.client.get(reverse(model.snippet_viewset.get_url_name("list")))
+                self.assertEqual(response.status_code, 200)
+
+    def test_rental_category_form_creates_nested_categories(self):
+        root_form = RentalCategoryForm(
+            data={"title": "Equipment", "slug": "equipment", "parent": "", "sort_order": 0, "is_active": True}
+        )
+        self.assertTrue(root_form.is_valid(), root_form.errors)
+        root = root_form.save()
+
+        child_form = RentalCategoryForm(
+            data={"title": "Cameras", "slug": "cameras", "parent": root.pk, "sort_order": 0, "is_active": True}
+        )
+        self.assertTrue(child_form.is_valid(), child_form.errors)
+        child = child_form.save()
+        self.assertEqual(child.get_parent(), root)
+
+        move_form = RentalCategoryForm(
+            instance=child,
+            data={"title": "Cameras", "slug": "cameras", "parent": "", "sort_order": 0, "is_active": True},
+        )
+        self.assertTrue(move_form.is_valid(), move_form.errors)
+        moved_child = move_form.save()
+        moved_child.refresh_from_db()
+        self.assertIsNone(moved_child.get_parent())
 
     def test_project_list_and_detail_return_only_published_projects(self):
         category = ProjectCategory.objects.create(title="Commercial", slug="commercial", is_active=True)

@@ -1,5 +1,4 @@
 from django.db import models
-from wagtail.snippets.models import register_snippet
 
 
 class NotificationStatus(models.TextChoices):
@@ -9,7 +8,6 @@ class NotificationStatus(models.TextChoices):
     SKIPPED = "skipped", "Пропущено"
 
 
-@register_snippet
 class NotificationEvent(models.Model):
     type = models.CharField("Тип", max_length=64)
     lead = models.ForeignKey(

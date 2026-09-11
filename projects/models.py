@@ -6,7 +6,6 @@ from modelcluster.models import ClusterableModel
 from wagtail.admin.panels import FieldPanel, InlinePanel, MultiFieldPanel
 from wagtail.images import get_image_model_string
 from wagtail.models import Orderable
-from wagtail.snippets.models import register_snippet
 
 
 class PublishStatus(models.TextChoices):
@@ -14,7 +13,6 @@ class PublishStatus(models.TextChoices):
     PUBLISHED = "published", "Опубликовано"
 
 
-@register_snippet
 class ProjectCategory(models.Model):
     title = models.CharField("Название", max_length=120)
     slug = models.SlugField("Slug", unique=True)
@@ -42,7 +40,6 @@ class PublishedProjectQuerySet(models.QuerySet):
         return self.filter(status=PublishStatus.PUBLISHED, published_at__lte=timezone.now())
 
 
-@register_snippet
 class Project(ClusterableModel, models.Model):
     category = models.ForeignKey(
         ProjectCategory,

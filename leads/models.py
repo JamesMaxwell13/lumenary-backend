@@ -3,7 +3,6 @@ from modelcluster.fields import ParentalKey
 from modelcluster.models import ClusterableModel
 from wagtail.admin.panels import FieldPanel, InlinePanel, MultiFieldPanel
 from wagtail.models import Orderable
-from wagtail.snippets.models import register_snippet
 
 
 class LeadType(models.TextChoices):
@@ -18,7 +17,6 @@ class LeadStatus(models.TextChoices):
     ARCHIVED = "archived", "Archived"
 
 
-@register_snippet
 class Lead(ClusterableModel, models.Model):
     type = models.CharField("Type", max_length=24, choices=LeadType.choices)
     name = models.CharField("Name", max_length=255)

@@ -1,9 +1,7 @@
 from django.db import models
 from wagtail.admin.panels import FieldPanel
-from wagtail.snippets.models import register_snippet
 
 
-@register_snippet
 class ServiceBlock(models.Model):
     title = models.CharField("Заголовок", max_length=120)
     text = models.TextField("Текст")
