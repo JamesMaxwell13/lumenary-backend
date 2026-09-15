@@ -1,17 +1,86 @@
 from django.conf import settings
-from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector, TrigramSimilarity
 from django.core.cache import cache
-from django.db.models import Max, Min, Q
+from django.db.models import Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework import serializers, viewsets
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from rental.models import AttributeType, RentalAttribute, RentalCategory, RentalItem
+from rental.models import RentalCategory, RentalItem
 
 
-ATTRIBUTE_PREFIX = "attributes."
+EN_TO_RU_LAYOUT = str.maketrans(
+    "`qwertyuiop[]asdfghjkl;'zxcvbnm,./"
+    "~QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?",
+    "ёйцукенгшщзхъфывапролджэячсмитьбю."
+    "ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ,"
+)
+RU_TO_EN_LAYOUT = str.maketrans(
+    "ёйцукенгшщзхъфывапролджэячсмитьбю."
+    "ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ,",
+    "`qwertyuiop[]asdfghjkl;'zxcvbnm,./"
+    "~QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?"
+)
+
+RU_TO_LATIN = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "e",
+    "ж": "zh",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "h",
+    "ц": "c",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "sch",
+    "ъ": "",
+    "ы": "y",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+}
+LATIN_TO_RU_HINTS = {
+    "stand": "стенд",
+    "stands": "стойки",
+    "c-stand": "си стенд",
+    "c stand": "си стенд",
+    "grip": "грип",
+    "flag": "флаг",
+    "frame": "рама",
+    "butterfly": "баттерфляй",
+    "avenger": "авенджер",
+    "manfrotto": "манфротто",
+    "matthews": "мэтьюс",
+}
+RU_TO_LATIN_HINTS = {
+    "си стенд": "c stand",
+    "с-стенд": "c-stand",
+    "стойка": "stand",
+    "стойки": "stands",
+    "флаг": "flag",
+    "рама": "frame",
+    "авенджер": "avenger",
+    "манфротто": "manfrotto",
+    "мэтьюс": "matthews",
+}
 
 
 def image_url(image):
@@ -86,13 +155,11 @@ class RentalItemListSerializer(serializers.ModelSerializer):
 class RentalItemDetailSerializer(RentalItemListSerializer):
     gallery = serializers.SerializerMethodField()
     attributes = RentalAttributeValueSerializer(source="attribute_values", many=True)
-    video_url = serializers.SerializerMethodField()
 
     class Meta(RentalItemListSerializer.Meta):
         fields = RentalItemListSerializer.Meta.fields + [
             "description",
             "detail_description",
-            "video_url",
             "seo_title",
             "seo_description",
             "gallery",
@@ -109,11 +176,6 @@ class RentalItemDetailSerializer(RentalItemListSerializer):
             }
             for item in obj.gallery.all()
         ]
-
-    @extend_schema_field(OpenApiTypes.URI)
-    def get_video_url(self, obj):
-        return obj.video_file.url if obj.video_file else obj.external_video_url
-
 
 class RentalCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RentalCategoryTreeSerializer
@@ -153,31 +215,8 @@ class RentalItemViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 category_ids = [category.id, *category.get_descendants().filter(is_active=True).values_list("id", flat=True)]
                 queryset = queryset.filter(category_id__in=category_ids)
-        if status := params.get("status"):
-            queryset = queryset.filter(status=status)
-        if price_min := params.get("price_min"):
-            queryset = queryset.filter(Q(price__gte=price_min) | Q(price_on_request=True))
-        if price_max := params.get("price_max"):
-            queryset = queryset.filter(Q(price__lte=price_max) | Q(price_on_request=True))
-        queryset = apply_attribute_filters(queryset, params)
         if search := params.get("search"):
-            vector = (
-                SearchVector("title", weight="A")
-                + SearchVector("short_description", weight="B")
-                + SearchVector("description", weight="C")
-                + SearchVector("category__title", weight="B")
-                + SearchVector("attribute_values__value_text", weight="D")
-                + SearchVector("attribute_values__value_choice", weight="D")
-            )
-            query = SearchQuery(search)
-            queryset = (
-                queryset.annotate(
-                    search_rank=SearchRank(vector, query),
-                    similarity=TrigramSimilarity("title", search),
-                )
-                .filter(Q(search_rank__gt=0.05) | Q(similarity__gt=0.15))
-                .order_by("-search_rank", "-similarity", "sort_order", "title")
-            )
+            queryset = queryset.filter(build_search_query(search))
         return queryset.distinct()
 
     def get_serializer_class(self):
@@ -186,79 +225,46 @@ class RentalItemViewSet(viewsets.ReadOnlyModelViewSet):
         return RentalItemListSerializer
 
 
-def apply_attribute_filters(queryset, params):
-    for key, value in params.items():
-        if not key.startswith(ATTRIBUTE_PREFIX) or value == "":
-            continue
-        expression = key.removeprefix(ATTRIBUTE_PREFIX)
-        if expression.endswith("_min"):
-            queryset = queryset.filter(
-                attribute_values__attribute__slug=expression[:-4],
-                attribute_values__attribute__type=AttributeType.NUMBER,
-                attribute_values__value_number__gte=value,
-            )
-        elif expression.endswith("_max"):
-            queryset = queryset.filter(
-                attribute_values__attribute__slug=expression[:-4],
-                attribute_values__attribute__type=AttributeType.NUMBER,
-                attribute_values__value_number__lte=value,
-            )
-        else:
-            queryset = filter_attribute_exact(queryset, expression, value)
-    return queryset
-
-
-def filter_attribute_exact(queryset, slug, value):
-    try:
-        attribute = RentalAttribute.objects.get(slug=slug)
-    except RentalAttribute.DoesNotExist:
-        return queryset.none()
-
-    filters = {"attribute_values__attribute": attribute}
-    if attribute.type == AttributeType.NUMBER:
-        filters["attribute_values__value_number"] = value
-    elif attribute.type == AttributeType.BOOLEAN:
-        parsed = parse_bool(value)
-        if parsed is None:
-            return queryset.none()
-        filters["attribute_values__value_boolean"] = parsed
-    elif attribute.type == AttributeType.CHOICE:
-        filters["attribute_values__value_choice"] = value
-    else:
-        filters["attribute_values__value_text"] = value
-    return queryset.filter(**filters)
-
-
-def parse_bool(value):
-    lowered = str(value).lower()
-    if lowered in {"1", "true", "yes", "on"}:
-        return True
-    if lowered in {"0", "false", "no", "off"}:
-        return False
-    return None
-
-
-@extend_schema(responses=OpenApiTypes.OBJECT)
-@api_view(["GET"])
-def rental_filters(request):
-    data = cache.get("api:rental:filters")
-    if data is None:
-        price_range = RentalItem.objects.published().filter(is_active=True, price_on_request=False).aggregate(
-            min=Min("price"),
-            max=Max("price"),
+def build_search_query(search):
+    query = Q()
+    for variant in search_variants(search):
+        query |= (
+            Q(title__icontains=variant)
+            | Q(slug__icontains=variant)
+            | Q(short_description__icontains=variant)
+            | Q(search_aliases__icontains=variant)
+            | Q(description__icontains=variant)
+            | Q(detail_description__icontains=variant)
+            | Q(category__title__icontains=variant)
+            | Q(attribute_values__value_text__icontains=variant)
+            | Q(attribute_values__value_choice__icontains=variant)
         )
-        attributes = RentalAttribute.objects.filter(filterable=True).order_by("sort_order", "name")
-        data = {
-            "price": price_range,
-            "attributes": [
-                {
-                    "name": item.name,
-                    "slug": item.slug,
-                    "type": item.type,
-                    "unit": item.unit,
-                }
-                for item in attributes
-            ],
-        }
-        cache.set("api:rental:filters", data, settings.CACHE_TIMEOUT)
-    return Response(data)
+    return query
+
+
+def search_variants(search):
+    normalized = " ".join(str(search).strip().split())
+    if not normalized:
+        return []
+
+    variants = {
+        normalized,
+        normalized.lower(),
+        normalized.translate(EN_TO_RU_LAYOUT),
+        normalized.translate(RU_TO_EN_LAYOUT),
+        transliterate_ru_to_latin(normalized),
+    }
+    lowered = normalized.lower()
+    for latin, russian in LATIN_TO_RU_HINTS.items():
+        if latin in lowered:
+            variants.add(lowered.replace(latin, russian))
+            variants.add(russian)
+    for russian, latin in RU_TO_LATIN_HINTS.items():
+        if russian in lowered:
+            variants.add(lowered.replace(russian, latin))
+            variants.add(latin)
+    return [variant for variant in variants if variant]
+
+
+def transliterate_ru_to_latin(value):
+    return "".join(RU_TO_LATIN.get(char.lower(), char.lower()) for char in value)

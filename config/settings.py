@@ -64,8 +64,6 @@ INSTALLED_APPS = [
     "services",
     "projects",
     "rental",
-    "leads",
-    "notifications",
     "api",
 ]
 
@@ -136,7 +134,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Luminary API",
-    "DESCRIPTION": "Public API for Luminary website content, rental catalog, and leads.",
+    "DESCRIPTION": "Public API for Luminary website content and rental catalog.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "PREPROCESSING_HOOKS": ["config.schema.public_api_only"],
@@ -165,8 +163,9 @@ else:
 WAGTAIL_SITE_NAME = "Luminary"
 WAGTAILADMIN_BASE_URL = env("ADMIN_BASE_URL", "http://localhost:8000")
 
-CELERY_BROKER_URL = env("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = env("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", REDIS_URL)
 
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
@@ -180,6 +179,4 @@ if AWS_STORAGE_BUCKET_NAME:
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
 
-TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID")
 ADMIN_BASE_URL = env("ADMIN_BASE_URL", WAGTAILADMIN_BASE_URL)

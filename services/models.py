@@ -1,5 +1,5 @@
 from django.db import models
-from wagtail.admin.panels import FieldPanel
+from wagtail.admin.panels import FieldPanel, MultiFieldPanel
 
 
 class ServiceBlock(models.Model):
@@ -11,8 +11,11 @@ class ServiceBlock(models.Model):
     panels = [
         FieldPanel("title"),
         FieldPanel("text"),
-        FieldPanel("sort_order"),
-        FieldPanel("is_active"),
+        MultiFieldPanel(
+            [FieldPanel("sort_order"), FieldPanel("is_active")],
+            heading="Технические настройки",
+            classname="collapsed",
+        ),
     ]
 
     class Meta:

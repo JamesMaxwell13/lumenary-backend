@@ -5,7 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from cms.models import ContactSettings, FooterSettings, HomePage
+from cms.models import ContactSettings, FooterSettings, HomePage, MainPageSectionSettings
 from services.models import ServiceBlock
 
 
@@ -25,6 +25,7 @@ def cached_response(key, builder):
 @api_view(["GET"])
 def home_page(request):
     page = HomePage.objects.live().public().first()
+    section_settings = MainPageSectionSettings.for_request(request)
     services = ServiceBlock.objects.filter(is_active=True).order_by("sort_order", "id")
     if not page:
         return Response({})
@@ -37,12 +38,27 @@ def home_page(request):
                 "image": image_url(page.hero_image),
                 "video_url": page.hero_video_url,
             },
+            "navigation": {
+                "about": page.nav_about_label,
+                "services": page.nav_services_label,
+                "projects": page.nav_projects_label,
+                "rental": page.nav_rental_label,
+                "contacts": page.nav_contacts_label,
+            },
             "services": {
-                "intro": page.services_intro,
+                "title": section_settings.services_title,
+                "intro": section_settings.services_intro,
                 "items": [
                     {"title": item.title, "text": item.text, "sort_order": item.sort_order}
                     for item in services
                 ],
+            },
+            "projects": {
+                "title": section_settings.projects_title,
+            },
+            "rental": {
+                "title": section_settings.rental_title,
+                "search_label": section_settings.rental_search_label,
             },
         }
     )
@@ -69,12 +85,34 @@ def contacts_settings(request):
     def build():
         contact_settings = ContactSettings.for_request(request)
         return {
+            "section_title": contact_settings.section_title,
             "email": contact_settings.email,
             "phone": contact_settings.phone,
             "address": contact_settings.address,
             "telegram": contact_settings.telegram,
             "instagram": contact_settings.instagram,
             "youtube": contact_settings.youtube,
+            "form": {
+                "title": contact_settings.form_title,
+                "fields": {
+                    "name": {
+                        "label": contact_settings.form_name_label,
+                        "placeholder": contact_settings.form_name_placeholder,
+                    },
+                    "phone": {
+                        "label": contact_settings.form_phone_label,
+                        "placeholder": contact_settings.form_phone_placeholder,
+                    },
+                    "email": {
+                        "label": contact_settings.form_email_label,
+                        "placeholder": contact_settings.form_email_placeholder,
+                    },
+                    "message": {
+                        "label": contact_settings.form_message_label,
+                        "placeholder": contact_settings.form_message_placeholder,
+                    },
+                },
+            },
         }
 
     return cached_response("api:settings:contacts", build)

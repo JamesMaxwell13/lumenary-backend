@@ -25,5 +25,3 @@ CACHES = {
 
 MIGRATION_MODULES = DisableMigrations()
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
-TELEGRAM_BOT_TOKEN = ""
-TELEGRAM_CHAT_ID = ""

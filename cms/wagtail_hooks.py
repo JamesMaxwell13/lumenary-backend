@@ -1,7 +1,10 @@
 from django import forms
-from wagtail.snippets.models import register_snippet
-from wagtail.snippets.views.snippets import SnippetViewSet
+from django.urls import reverse
+from wagtail import hooks
+from wagtail.admin.menu import MenuItem
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
+from cms.models import HomePage
 from projects.models import Project, ProjectCategory
 from rental.models import RentalAttribute, RentalCategory, RentalItem
 from services.models import ServiceBlock
@@ -9,7 +12,8 @@ from services.models import ServiceBlock
 
 class ServiceBlockViewSet(SnippetViewSet):
     model = ServiceBlock
-    menu_label = "Services"
+    menu_label = "Карточки услуг"
+    menu_name = "service-blocks"
     menu_icon = "list-ul"
     list_display = ["title", "sort_order", "is_active"]
     list_filter = ["is_active"]
@@ -19,7 +23,8 @@ class ServiceBlockViewSet(SnippetViewSet):
 
 class ProjectCategoryViewSet(SnippetViewSet):
     model = ProjectCategory
-    menu_label = "Project categories"
+    menu_label = "Разделы проектов"
+    menu_name = "project-categories"
     menu_icon = "folder-open-inverse"
     list_display = ["title", "slug", "sort_order", "is_active"]
     list_filter = ["is_active"]
@@ -29,8 +34,9 @@ class ProjectCategoryViewSet(SnippetViewSet):
 
 class ProjectViewSet(SnippetViewSet):
     model = Project
-    menu_label = "Projects"
-    menu_icon = "folder-open-inverse"
+    menu_label = "Проекты"
+    menu_name = "projects"
+    menu_icon = "media"
     list_display = ["title", "category", "status", "is_featured", "published_at"]
     list_filter = ["category", "status", "is_featured"]
     search_fields = ["title", "slug", "short_caption", "description", "client"]
@@ -39,7 +45,7 @@ class ProjectViewSet(SnippetViewSet):
 
 class RentalCategoryForm(forms.ModelForm):
     parent = forms.ModelChoiceField(
-        label="Parent category",
+        label="Родительский раздел",
         queryset=RentalCategory.objects.none(),
         required=False,
     )
@@ -82,7 +88,8 @@ class RentalCategoryForm(forms.ModelForm):
 
 class RentalCategoryViewSet(SnippetViewSet):
     model = RentalCategory
-    menu_label = "Rental categories"
+    menu_label = "Разделы аренды"
+    menu_name = "rental-categories"
     menu_icon = "folder-open-inverse"
     list_display = ["title", "slug", "depth", "sort_order", "is_active"]
     list_filter = ["is_active"]
@@ -96,7 +103,8 @@ class RentalCategoryViewSet(SnippetViewSet):
 
 class RentalItemViewSet(SnippetViewSet):
     model = RentalItem
-    menu_label = "Rental items"
+    menu_label = "Позиции аренды"
+    menu_name = "rental-items"
     menu_icon = "pick"
     list_display = ["title", "category", "status", "publication_status", "is_active", "price"]
     list_filter = ["category", "status", "publication_status", "is_active", "price_on_request"]
@@ -106,7 +114,8 @@ class RentalItemViewSet(SnippetViewSet):
 
 class RentalAttributeViewSet(SnippetViewSet):
     model = RentalAttribute
-    menu_label = "Rental attributes"
+    menu_label = "Характеристики"
+    menu_name = "rental-attributes"
     menu_icon = "list-ul"
     list_display = ["name", "slug", "type", "filterable", "sort_order"]
     list_filter = ["type", "filterable"]
@@ -114,9 +123,50 @@ class RentalAttributeViewSet(SnippetViewSet):
     ordering = ["sort_order", "name"]
 
 
-register_snippet(ServiceBlock, viewset=ServiceBlockViewSet)
-register_snippet(ProjectCategory, viewset=ProjectCategoryViewSet)
-register_snippet(Project, viewset=ProjectViewSet)
-register_snippet(RentalCategory, viewset=RentalCategoryViewSet)
-register_snippet(RentalItem, viewset=RentalItemViewSet)
-register_snippet(RentalAttribute, viewset=RentalAttributeViewSet)
+class ServicesGroup(SnippetViewSetGroup):
+    menu_label = "Услуги"
+    menu_name = "services-content"
+    menu_icon = "list-ul"
+    menu_order = 100
+    items = (ServiceBlockViewSet,)
+
+
+class PortfolioGroup(SnippetViewSetGroup):
+    menu_label = "Портфолио"
+    menu_name = "portfolio"
+    menu_icon = "media"
+    menu_order = 200
+    items = (ProjectViewSet, ProjectCategoryViewSet)
+
+
+class RentalGroup(SnippetViewSetGroup):
+    menu_label = "Аренда"
+    menu_name = "rental-content"
+    menu_icon = "pick"
+    menu_order = 300
+    items = (RentalItemViewSet, RentalCategoryViewSet)
+
+
+@hooks.register("register_admin_menu_item")
+def register_home_page_menu_item():
+    home_page = HomePage.objects.live().first() or HomePage.objects.first()
+    if home_page:
+        url = reverse("wagtailadmin_pages:edit", args=[home_page.pk])
+    else:
+        url = reverse("wagtailadmin_explore_root")
+    return MenuItem("Главная", url, icon_name="home", order=90)
+
+
+@hooks.register("register_admin_viewset")
+def register_services_group():
+    return ServicesGroup()
+
+
+@hooks.register("register_admin_viewset")
+def register_portfolio_group():
+    return PortfolioGroup()
+
+
+@hooks.register("register_admin_viewset")
+def register_rental_group():
+    return RentalGroup()

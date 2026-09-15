@@ -21,9 +21,11 @@ class ProjectCategory(models.Model):
 
     panels = [
         FieldPanel("title"),
-        FieldPanel("slug"),
-        FieldPanel("sort_order"),
-        FieldPanel("is_active"),
+        MultiFieldPanel(
+            [FieldPanel("slug"), FieldPanel("sort_order"), FieldPanel("is_active")],
+            heading="Технические настройки",
+            classname="collapsed",
+        ),
     ]
 
     class Meta:
@@ -83,14 +85,18 @@ class Project(ClusterableModel, models.Model):
     objects = PublishedProjectQuerySet.as_manager()
 
     panels = [
-        FieldPanel("category"),
-        FieldPanel("title"),
-        FieldPanel("slug"),
-        FieldPanel("cover_image"),
-        FieldPanel("video_file"),
-        FieldPanel("external_video_url"),
-        FieldPanel("short_caption"),
-        FieldPanel("description"),
+        MultiFieldPanel(
+            [
+                FieldPanel("category"),
+                FieldPanel("title"),
+                FieldPanel("cover_image"),
+                FieldPanel("video_file"),
+                FieldPanel("external_video_url"),
+                FieldPanel("short_caption"),
+                FieldPanel("description"),
+            ],
+            heading="Карточка проекта",
+        ),
         MultiFieldPanel(
             [
                 FieldPanel("client"),
@@ -101,15 +107,17 @@ class Project(ClusterableModel, models.Model):
             ],
             heading="Страница проекта",
         ),
+        InlinePanel("gallery", label="Галерея"),
         MultiFieldPanel(
             [FieldPanel("seo_title"), FieldPanel("seo_description")],
-            heading="SEO",
+            heading="Для Google и превью ссылок",
+            classname="collapsed",
         ),
-        InlinePanel("gallery", label="Галерея"),
-        FieldPanel("sort_order"),
-        FieldPanel("is_featured"),
-        FieldPanel("status"),
-        FieldPanel("published_at"),
+        MultiFieldPanel(
+            [FieldPanel("slug"), FieldPanel("sort_order"), FieldPanel("is_featured"), FieldPanel("status"), FieldPanel("published_at")],
+            heading="Технические настройки",
+            classname="collapsed",
+        ),
     ]
 
     class Meta:

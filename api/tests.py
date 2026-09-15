@@ -1,27 +1,24 @@
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
+from wagtail.snippets.models import get_snippet_models
 
-from notifications.models import NotificationEvent, NotificationStatus
-from leads.models import Lead
+from cms.models import ContactSettings, HomePage, MainPageSectionSettings
+from cms.wagtail_hooks import PortfolioGroup, RentalCategoryForm, RentalGroup, ServicesGroup
 from projects.models import Project, ProjectCategory, PublishStatus as ProjectPublishStatus
+from rental.api import search_variants
 from rental.models import (
-    AttributeType,
     PublishStatus as RentalPublishStatus,
-    RentalAttribute,
-    RentalAttributeValue,
     RentalCategory,
     RentalItem,
     RentalStatus,
 )
 from services.models import ServiceBlock
-from wagtail.snippets.models import get_snippet_models
-
-from cms.wagtail_hooks import RentalCategoryForm
 
 
 TEST_CACHES = {
@@ -32,12 +29,7 @@ TEST_CACHES = {
 }
 
 
-@override_settings(
-    CACHES=TEST_CACHES,
-    CACHE_TIMEOUT=60,
-    TELEGRAM_BOT_TOKEN="",
-    TELEGRAM_CHAT_ID="",
-)
+@override_settings(CACHES=TEST_CACHES, CACHE_TIMEOUT=60)
 class PublicApiTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -58,9 +50,7 @@ class PublicApiTests(TestCase):
 
     def test_wagtail_registers_content_snippets_only(self):
         snippet_models = set(get_snippet_models())
-        self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute} <= snippet_models)
-        self.assertNotIn(Lead, snippet_models)
-        self.assertNotIn(NotificationEvent, snippet_models)
+        self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem} <= snippet_models)
 
     def test_content_snippet_indexes_are_available_to_superuser(self):
         user = get_user_model().objects.create_superuser(
@@ -69,10 +59,17 @@ class PublicApiTests(TestCase):
             password="test-password",
         )
         self.client.force_login(user)
-        for model in (ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute):
+        for model in (ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem):
             with self.subTest(model=model.__name__):
                 response = self.client.get(reverse(model.snippet_viewset.get_url_name("list")))
                 self.assertEqual(response.status_code, 200)
+
+    def test_wagtail_content_admin_groups_use_plain_russian_labels(self):
+        self.assertEqual(ServicesGroup.menu_label, "Услуги")
+        self.assertEqual(PortfolioGroup.menu_label, "Портфолио")
+        self.assertEqual(RentalGroup.menu_label, "Аренда")
+        self.assertEqual(Project.snippet_viewset.menu_label, "Проекты")
+        self.assertEqual(RentalItem.snippet_viewset.menu_label, "Позиции аренды")
 
     def test_rental_category_form_creates_nested_categories(self):
         root_form = RentalCategoryForm(
@@ -132,107 +129,59 @@ class PublicApiTests(TestCase):
         self.assertEqual(response.data[0]["slug"], "equipment")
         self.assertEqual(response.data[0]["children"][0]["slug"], "cameras")
 
-    def test_rental_items_support_public_filters_and_attribute_filters(self):
-        category = RentalCategory.add_root(title="Lights", slug="lights", is_active=True)
-        power = RentalAttribute.objects.create(name="Power", slug="power", type=AttributeType.NUMBER)
-        color = RentalAttribute.objects.create(name="Color", slug="color", type=AttributeType.CHOICE)
-        first = self.create_rental_item(category, "Light 300", "light-300", price=100)
-        second = self.create_rental_item(category, "Light 600", "light-600", price=300)
-        unavailable = self.create_rental_item(
-            category,
-            "Unavailable light",
-            "unavailable-light",
-            price=200,
-            status=RentalStatus.UNAVAILABLE,
+    def test_rental_items_support_category_browsing_and_search(self):
+        lights = RentalCategory.add_root(title="СВЕТОВОЕ ОБОРУДОВАНИЕ", slug="lighting-equipment", is_active=True)
+        stands = lights.add_child(title="Стойки, железо", slug="stands-grip", is_active=True)
+        flags = lights.add_child(title="Флаги, рамы, плоскости", slug="flags-frames-surfaces", is_active=True)
+        stand = self.create_rental_item(
+            stands,
+            "Avenger A2033FCB C-Stand 33 Black",
+            "avenger-a2033fcb-c-stand-33-black",
+            search_aliases="c stand c-stand си стенд с-стенд авенджер стойка грип железо",
         )
-        RentalAttributeValue.objects.create(item=first, attribute=power, value_number=300)
-        RentalAttributeValue.objects.create(item=first, attribute=color, value_choice="black")
-        RentalAttributeValue.objects.create(item=second, attribute=power, value_number=600)
-        RentalAttributeValue.objects.create(item=second, attribute=color, value_choice="silver")
-        RentalAttributeValue.objects.create(item=unavailable, attribute=power, value_number=900)
-
-        list_response = self.client.get("/api/v1/rental/items/")
-        self.assertEqual(list_response.status_code, 200)
-        self.assertEqual(
-            {item["slug"] for item in list_response.data["results"]},
-            {"light-300", "light-600", "unavailable-light"},
+        flag = self.create_rental_item(
+            flags,
+            "Matthews Floppy Cutter 48x48",
+            "matthews-floppy-cutter-48x48",
+            search_aliases="matthews floppy cutter flag флоппи каттер флаг",
         )
 
-        status_response = self.client.get("/api/v1/rental/items/", {"status": RentalStatus.AVAILABLE})
-        self.assertEqual({item["slug"] for item in status_response.data["results"]}, {"light-300", "light-600"})
+        category_response = self.client.get("/api/v1/rental/items/", {"category": "lighting-equipment"})
+        self.assertEqual({item["slug"] for item in category_response.data["results"]}, {stand.slug, flag.slug})
 
-        price_response = self.client.get("/api/v1/rental/items/", {"price_min": 200})
-        self.assertEqual({item["slug"] for item in price_response.data["results"]}, {"light-600", "unavailable-light"})
+        for query in ("c stand", "си стенд", "СИ СТЕНД", "с-стенд", "avenger"):
+            with self.subTest(query=query):
+                search_response = self.client.get("/api/v1/rental/items/", {"search": query})
+                self.assertEqual([item["slug"] for item in search_response.data["results"]], [stand.slug])
 
-        min_response = self.client.get("/api/v1/rental/items/", {"attributes.power_min": 400})
-        self.assertEqual({item["slug"] for item in min_response.data["results"]}, {"light-600", "unavailable-light"})
-
-        exact_response = self.client.get("/api/v1/rental/items/", {"attributes.color": "black"})
-        self.assertEqual([item["slug"] for item in exact_response.data["results"]], ["light-300"])
-
-        detail_response = self.client.get("/api/v1/rental/items/light-300/")
+        detail_response = self.client.get(f"/api/v1/rental/items/{stand.slug}/")
         self.assertEqual(detail_response.status_code, 200)
-        self.assertEqual(detail_response.data["slug"], "light-300")
+        self.assertNotIn("video_url", detail_response.data)
 
-    def test_rental_filters_endpoint_returns_price_range_and_filterable_attributes(self):
-        category = RentalCategory.add_root(title="Cameras", slug="cameras", is_active=True)
-        RentalAttribute.objects.create(name="Mount", slug="mount", type=AttributeType.CHOICE, filterable=True)
-        self.create_rental_item(category, "Camera", "camera", price=50)
+    def test_search_variants_cover_latin_cyrillic_and_wrong_keyboard_layout(self):
+        variants = search_variants("c stand")
+        self.assertIn("си стенд", variants)
+        self.assertIn("с ыефтв", variants)
 
-        response = self.client.get("/api/v1/rental/filters/")
+        variants = search_variants("с-стенд")
+        self.assertIn("c-stand", variants)
+
+    def test_rental_filters_and_lead_routes_are_removed(self):
+        self.assertEqual(self.client.get("/api/v1/rental/filters/").status_code, 404)
+        self.assertEqual(self.client.post("/api/v1/leads/", {}).status_code, 404)
+        self.assertEqual(self.client.post("/api/v1/rental/leads/", {}).status_code, 404)
+
+    def test_contacts_endpoint_returns_contact_copy_without_lead_wording(self):
+        call_command("seed_figma_content", verbosity=0)
+
+        response = self.client.get("/api/v1/pages/contacts/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["price"]["min"], 50)
-        self.assertEqual(response.data["price"]["max"], 50)
-        self.assertEqual(response.data["attributes"][0]["slug"], "mount")
+        self.assertEqual(response.data["section_title"], "КОНТАКТЫ")
+        self.assertEqual(response.data["form"]["title"], "СВЯЗАТЬСЯ С НАМИ")
+        self.assertEqual(response.data["form"]["fields"]["message"]["label"], "Сообщение")
 
-    def test_contact_lead_creates_skipped_notification_without_telegram_settings(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                "/api/v1/leads/",
-                {"name": "Ada", "phone": "+375291234567", "email": "ada@example.com", "message": "Hello"},
-                format="json",
-            )
-
-        self.assertEqual(response.status_code, 201)
-        event = NotificationEvent.objects.get()
-        self.assertEqual(event.status, NotificationStatus.SKIPPED)
-
-    def test_rental_lead_accepts_only_published_active_items(self):
-        category = RentalCategory.add_root(title="Props", slug="props", is_active=True)
-        published = self.create_rental_item(category, "Chair", "chair", price=10)
-        draft = self.create_rental_item(
-            category,
-            "Draft chair",
-            "draft-chair",
-            price=10,
-            publication_status=RentalPublishStatus.DRAFT,
-        )
-
-        with self.captureOnCommitCallbacks(execute=True):
-            success_response = self.client.post(
-                "/api/v1/rental/leads/",
-                {
-                    "name": "Ada",
-                    "phone": "+375291234567",
-                    "items": [{"rental_item": published.slug, "quantity": 2}],
-                },
-                format="json",
-            )
-        self.assertEqual(success_response.status_code, 201)
-
-        rejected_response = self.client.post(
-            "/api/v1/rental/leads/",
-            {
-                "name": "Ada",
-                "phone": "+375291234567",
-                "items": [{"rental_item": draft.slug, "quantity": 1}],
-            },
-            format="json",
-        )
-        self.assertEqual(rejected_response.status_code, 400)
-
-    def test_video_file_and_external_url_are_mutually_exclusive(self):
+    def test_project_video_file_and_external_url_are_mutually_exclusive(self):
         project_category = ProjectCategory.objects.create(title="Film", slug="film")
         project = Project(
             category=project_category,
@@ -244,20 +193,29 @@ class PublicApiTests(TestCase):
         with self.assertRaises(ValidationError):
             project.clean()
 
-        rental_category = RentalCategory.add_root(title="Equipment", slug="equipment")
-        rental_item = RentalItem(
-            category=rental_category,
-            title="Camera",
-            slug="camera",
-            video_file="rental-videos/camera.mp4",
-            external_video_url="https://example.com/video",
-        )
-        with self.assertRaises(ValidationError):
-            rental_item.clean()
-
     def test_openapi_and_docs_urls_are_available(self):
         self.assertEqual(self.client.get("/api/schema/").status_code, 200)
         self.assertEqual(self.client.get("/api/docs/").status_code, 200)
+
+    def test_seed_figma_content_is_idempotent(self):
+        call_command("seed_figma_content", verbosity=0)
+        call_command("seed_figma_content", verbosity=0)
+
+        home_page = HomePage.objects.get()
+        self.assertEqual(home_page.hero_title, "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ")
+        self.assertFalse(hasattr(home_page, "projects_title"))
+
+        section_settings = MainPageSectionSettings.objects.get()
+        self.assertEqual(section_settings.projects_title, "НАШИ ПРОЕКТЫ")
+
+        contact_settings = ContactSettings.objects.get()
+        self.assertEqual(contact_settings.email, "red.queen.by@gmail.com")
+        self.assertEqual(contact_settings.form_message_placeholder, "Ваш текст")
+
+        self.assertEqual(ServiceBlock.objects.filter(title="АРЕНДА").count(), 1)
+        self.assertEqual(ProjectCategory.objects.filter(slug="music-videos", title="КЛИПЫ").count(), 1)
+        self.assertEqual(RentalCategory.objects.filter(slug="camera-equipment").count(), 1)
+        self.assertEqual(RentalItem.objects.filter(slug="avenger-a2033fcb-c-stand-33-black").count(), 1)
 
     def create_rental_item(
         self,
@@ -265,7 +223,8 @@ class PublicApiTests(TestCase):
         title,
         slug,
         *,
-        price,
+        search_aliases="",
+        price=100,
         status=RentalStatus.AVAILABLE,
         publication_status=RentalPublishStatus.PUBLISHED,
     ):
@@ -273,6 +232,8 @@ class PublicApiTests(TestCase):
             category=category,
             title=title,
             slug=slug,
+            short_description="",
+            search_aliases=search_aliases,
             price=price,
             status=status,
             publication_status=publication_status,
