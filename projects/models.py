@@ -59,6 +59,14 @@ class Project(ClusterableModel, models.Model):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    video_preview = models.ForeignKey(
+        get_image_model_string(),
+        verbose_name="Превью видео",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     video_file = models.FileField("Видео-файл", upload_to="project-videos/", blank=True)
     external_video_url = models.URLField("Внешняя видео-ссылка", blank=True)
     short_caption = models.CharField("Подпись карточки", max_length=255, blank=True)
@@ -90,6 +98,7 @@ class Project(ClusterableModel, models.Model):
                 FieldPanel("category"),
                 FieldPanel("title"),
                 FieldPanel("cover_image"),
+                FieldPanel("video_preview"),
                 FieldPanel("video_file"),
                 FieldPanel("external_video_url"),
                 FieldPanel("short_caption"),
@@ -107,7 +116,7 @@ class Project(ClusterableModel, models.Model):
             ],
             heading="Страница проекта",
         ),
-        InlinePanel("gallery", label="Галерея"),
+        InlinePanel("gallery", label="Скриншоты проекта"),
         MultiFieldPanel(
             [FieldPanel("seo_title"), FieldPanel("seo_description")],
             heading="Для Google и превью ссылок",
@@ -140,7 +149,7 @@ class ProjectGalleryImage(Orderable):
     project = ParentalKey(Project, on_delete=models.CASCADE, related_name="gallery")
     image = models.ForeignKey(
         get_image_model_string(),
-        verbose_name="Изображение",
+        verbose_name="Скриншот",
         on_delete=models.CASCADE,
         related_name="+",
     )
@@ -153,5 +162,5 @@ class ProjectGalleryImage(Orderable):
 
     class Meta:
         ordering = ["sort_order", "id"]
-        verbose_name = "изображение проекта"
-        verbose_name_plural = "галерея проекта"
+        verbose_name = "скриншот проекта"
+        verbose_name_plural = "скриншоты проекта"

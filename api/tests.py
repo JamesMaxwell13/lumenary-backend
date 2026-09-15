@@ -114,10 +114,12 @@ class PublicApiTests(TestCase):
         list_response = self.client.get("/api/v1/projects/")
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual([item["slug"] for item in list_response.data["results"]], [published.slug])
+        self.assertIn("video_preview", list_response.data["results"][0])
 
         detail_response = self.client.get(f"/api/v1/projects/{published.slug}/")
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.data["slug"], published.slug)
+        self.assertIn("video_preview", detail_response.data)
 
     def test_rental_categories_are_returned_as_tree(self):
         root = RentalCategory.add_root(title="Equipment", slug="equipment", is_active=True)
@@ -211,6 +213,10 @@ class PublicApiTests(TestCase):
         contact_settings = ContactSettings.objects.get()
         self.assertEqual(contact_settings.email, "red.queen.by@gmail.com")
         self.assertEqual(contact_settings.form_message_placeholder, "Ваш текст")
+
+        home_response = self.client.get("/api/v1/pages/home/")
+        self.assertEqual(home_response.status_code, 200)
+        self.assertIn("video_preview", home_response.data["hero"])
 
         self.assertEqual(ServiceBlock.objects.filter(title="АРЕНДА").count(), 1)
         self.assertEqual(ProjectCategory.objects.filter(slug="music-videos", title="КЛИПЫ").count(), 1)

@@ -21,6 +21,7 @@ class ProjectCategorySerializer(serializers.ModelSerializer):
 class ProjectListSerializer(serializers.ModelSerializer):
     category = ProjectCategorySerializer()
     cover_image = serializers.SerializerMethodField()
+    video_preview = serializers.SerializerMethodField()
     video_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -30,6 +31,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             "slug",
             "category",
             "cover_image",
+            "video_preview",
             "video_url",
             "short_caption",
             "is_featured",
@@ -38,6 +40,10 @@ class ProjectListSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.URI)
     def get_cover_image(self, obj):
         return image_url(obj.cover_image)
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_video_preview(self, obj):
+        return image_url(obj.video_preview)
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_video_url(self, obj):
@@ -100,7 +106,7 @@ class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = (
             Project.objects.published()
             .filter(category__is_active=True)
-            .select_related("category", "cover_image")
+            .select_related("category", "cover_image", "video_preview")
             .prefetch_related("gallery__image")
         )
         category = self.request.query_params.get("category")

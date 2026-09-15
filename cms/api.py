@@ -36,6 +36,7 @@ def home_page(request):
                 "text": page.hero_text,
                 "tags": page.hero_tags,
                 "image": image_url(page.hero_image),
+                "video_preview": image_url(page.hero_video_preview),
                 "video_url": page.hero_video_url,
             },
             "navigation": {

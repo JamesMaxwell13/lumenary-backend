@@ -18,6 +18,14 @@ class HomePage(Page):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    hero_video_preview = models.ForeignKey(
+        get_image_model_string(),
+        verbose_name="Превью основного showreel",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     hero_video_url = models.URLField("Ссылка на основной showreel", blank=True)
     nav_about_label = models.CharField("Меню: о нас", max_length=64, default="О НАС")
     nav_services_label = models.CharField("Меню: услуги", max_length=64, default="УСЛУГИ")
@@ -39,6 +47,7 @@ class HomePage(Page):
                 FieldPanel("hero_text"),
                 FieldPanel("hero_tags"),
                 FieldPanel("hero_image"),
+                FieldPanel("hero_video_preview"),
                 FieldPanel("hero_video_url"),
             ],
             heading="Первый экран и showreel",
