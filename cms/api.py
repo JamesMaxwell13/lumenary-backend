@@ -33,6 +33,7 @@ def home_page(request):
         {
             "hero": {
                 "title": page.hero_title,
+                "title_mobile": page.hero_title_mobile,
                 "text": page.hero_text,
                 "tags": page.hero_tags,
                 "image": image_url(page.hero_image),

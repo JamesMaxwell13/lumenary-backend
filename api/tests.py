@@ -24,7 +24,7 @@ from services.models import ServiceBlock
 TEST_CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "luminary-tests",
+        "LOCATION": "lumenary-tests",
     }
 }
 
@@ -205,6 +205,7 @@ class PublicApiTests(TestCase):
 
         home_page = HomePage.objects.get()
         self.assertEqual(home_page.hero_title, "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ")
+        self.assertEqual(home_page.hero_title_mobile, "ПРОДАКШН\nДЛЯ КИНО\nИ РЕКЛАМЫ")
         self.assertFalse(hasattr(home_page, "projects_title"))
 
         section_settings = MainPageSectionSettings.objects.get()

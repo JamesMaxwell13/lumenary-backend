@@ -16,7 +16,7 @@ def build_lead_admin_url(lead: Lead) -> str:
 
 def build_telegram_message(lead: Lead) -> str:
     lines = [
-        "Новая заявка Luminary",
+        "Новая заявка lumEnary",
         f"Тип: {lead.get_type_display()}",
         f"Имя: {lead.name}",
         f"Телефон: {lead.phone}",

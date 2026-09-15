@@ -7,7 +7,8 @@ from wagtail.models import Page
 
 
 class HomePage(Page):
-    hero_title = models.CharField("Заголовок первого экрана", max_length=255)
+    hero_title = models.TextField("Заголовок первого экрана")
+    hero_title_mobile = models.TextField("Заголовок первого экрана на мобильных", blank=True)
     hero_text = models.TextField("Текст первого экрана")
     hero_tags = models.CharField("Строка тегов", max_length=255, blank=True)
     hero_image = models.ForeignKey(
@@ -44,6 +45,7 @@ class HomePage(Page):
         MultiFieldPanel(
             [
                 FieldPanel("hero_title"),
+                FieldPanel("hero_title_mobile"),
                 FieldPanel("hero_text"),
                 FieldPanel("hero_tags"),
                 FieldPanel("hero_image"),
