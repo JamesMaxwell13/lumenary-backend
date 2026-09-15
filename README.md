@@ -1,6 +1,6 @@
-# lumEnary Backend
+# Lumenary Backend
 
-Headless backend для сайта lumEnary.
+Headless backend для сайта Lumenary.
 
 ## Стек
 

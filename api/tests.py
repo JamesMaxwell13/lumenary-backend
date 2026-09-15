@@ -24,7 +24,7 @@ from services.models import ServiceBlock
 TEST_CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "lumenary-tests",
+        "LOCATION": "Lumenary-tests",
     }
 }
 

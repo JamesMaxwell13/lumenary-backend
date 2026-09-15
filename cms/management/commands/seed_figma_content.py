@@ -11,8 +11,8 @@ from services.models import ServiceBlock
 
 
 HOME_PAGE_COPY = {
-    "title": "lumEnary",
-    "slug": "lumenary",
+    "title": "Lumenary",
+    "slug": "Lumenary",
     "hero_title": "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ",
     "hero_title_mobile": "ПРОДАКШН\nДЛЯ КИНО\nИ РЕКЛАМЫ",
     "hero_text": (
@@ -43,9 +43,9 @@ CONTACT_COPY = {
     "email": "red.queen.by@gmail.com",
     "phone": "+37529123456",
     "address": "ул. Розы Люксембург 95\nг.Минск",
-    "telegram": "@lumEnary_By",
-    "instagram": "@lumEnary_By",
-    "youtube": "@lumEnary_By",
+    "telegram": "@Lumenary_By",
+    "instagram": "@Lumenary_By",
+    "youtube": "@Lumenary_By",
     "form_title": "СВЯЗАТЬСЯ С НАМИ",
     "form_name_label": "Имя",
     "form_name_placeholder": "Как к вам обращаться?",

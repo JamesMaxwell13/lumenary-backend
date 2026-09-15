@@ -102,9 +102,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB", "lumenary"),
-        "USER": env("POSTGRES_USER", "lumenary"),
-        "PASSWORD": env("POSTGRES_PASSWORD", "lumenary"),
+        "NAME": env("POSTGRES_DB", "Lumenary"),
+        "USER": env("POSTGRES_USER", "Lumenary"),
+        "PASSWORD": env("POSTGRES_PASSWORD", "Lumenary"),
         "HOST": env("POSTGRES_HOST", "localhost"),
         "PORT": env("POSTGRES_PORT", "5432"),
     }
@@ -133,8 +133,8 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "lumEnary API",
-    "DESCRIPTION": "Public API for lumEnary website content and rental catalog.",
+    "TITLE": "Lumenary API",
+    "DESCRIPTION": "Public API for Lumenary website content and rental catalog.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "PREPROCESSING_HOOKS": ["config.schema.public_api_only"],
@@ -156,11 +156,11 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "lumenary-local-cache",
+            "LOCATION": "Lumenary-local-cache",
         }
     }
 
-WAGTAIL_SITE_NAME = "lumEnary"
+WAGTAIL_SITE_NAME = "Lumenary"
 WAGTAILADMIN_BASE_URL = env("ADMIN_BASE_URL", "http://localhost:8000")
 
 REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
