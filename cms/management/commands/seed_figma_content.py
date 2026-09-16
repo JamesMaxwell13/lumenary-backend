@@ -46,15 +46,6 @@ CONTACT_COPY = {
     "telegram": "@Lumenary_By",
     "instagram": "@Lumenary_By",
     "youtube": "@Lumenary_By",
-    "form_title": "СВЯЗАТЬСЯ С НАМИ",
-    "form_name_label": "Имя",
-    "form_name_placeholder": "Как к вам обращаться?",
-    "form_phone_label": "Телефон",
-    "form_phone_placeholder": "+375-XX-XXXXXX",
-    "form_email_label": "Email",
-    "form_email_placeholder": "email@mail.com",
-    "form_message_label": "Сообщение",
-    "form_message_placeholder": "Ваш текст",
 }
 
 SERVICES = [

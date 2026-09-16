@@ -60,7 +60,6 @@ INSTALLED_APPS = [
     "modelcluster",
     "taggit",
     "cms",
-    "media_library",
     "services",
     "projects",
     "rental",

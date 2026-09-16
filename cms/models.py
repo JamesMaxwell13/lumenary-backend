@@ -1,7 +1,6 @@
 from django.db import models
 from wagtail.admin.panels import FieldPanel, HelpPanel, MultiFieldPanel
 from wagtail.contrib.settings.models import BaseSiteSetting, register_setting
-from wagtail.fields import RichTextField
 from wagtail.images import get_image_model_string
 from wagtail.models import Page
 
@@ -113,15 +112,6 @@ class ContactSettings(BaseSiteSetting):
     telegram = models.CharField("Telegram", max_length=128, blank=True)
     instagram = models.CharField("Instagram", max_length=128, blank=True)
     youtube = models.CharField("Youtube", max_length=128, blank=True)
-    form_title = models.CharField("Заголовок формы связи", max_length=120, default="СВЯЗАТЬСЯ С НАМИ")
-    form_name_label = models.CharField("Подпись имени", max_length=64, default="Имя")
-    form_name_placeholder = models.CharField("Подсказка имени", max_length=120, default="Как к вам обращаться?")
-    form_phone_label = models.CharField("Подпись телефона", max_length=64, default="Телефон")
-    form_phone_placeholder = models.CharField("Подсказка телефона", max_length=120, default="+375-XX-XXXXXX")
-    form_email_label = models.CharField("Подпись email", max_length=64, default="Email")
-    form_email_placeholder = models.CharField("Подсказка email", max_length=120, default="email@mail.com")
-    form_message_label = models.CharField("Подпись сообщения", max_length=64, default="Сообщение")
-    form_message_placeholder = models.CharField("Подсказка сообщения", max_length=120, default="Ваш текст")
 
     panels = [
         MultiFieldPanel(
@@ -135,32 +125,5 @@ class ContactSettings(BaseSiteSetting):
                 FieldPanel("youtube"),
             ],
             heading="Контакты на сайте",
-        ),
-        MultiFieldPanel(
-            [
-                FieldPanel("form_title"),
-                FieldPanel("form_name_label"),
-                FieldPanel("form_name_placeholder"),
-                FieldPanel("form_phone_label"),
-                FieldPanel("form_phone_placeholder"),
-                FieldPanel("form_email_label"),
-                FieldPanel("form_email_placeholder"),
-                FieldPanel("form_message_label"),
-                FieldPanel("form_message_placeholder"),
-            ],
-            heading="Форма связи",
-        ),
-    ]
-
-
-@register_setting
-class FooterSettings(BaseSiteSetting):
-    details_text = RichTextField("Реквизиты", blank=True)
-    contacts_text = RichTextField("Контакты в футере", blank=True)
-
-    panels = [
-        MultiFieldPanel(
-            [FieldPanel("details_text"), FieldPanel("contacts_text")],
-            heading="Текст внизу сайта",
         ),
     ]

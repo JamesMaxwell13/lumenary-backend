@@ -43,19 +43,6 @@ class PublicApiTests(TestCase):
         cache.clear()
         self.client = APIClient()
 
-    def test_services_page_cache_is_invalidated_when_content_changes(self):
-        ServiceBlock.objects.create(title="Preproduction", text="Planning", sort_order=1, is_active=True)
-
-        first_response = self.client.get("/api/v1/pages/services/")
-        self.assertEqual(first_response.status_code, 200)
-        self.assertEqual(len(first_response.data["items"]), 1)
-
-        ServiceBlock.objects.create(title="Rental", text="Gear selection", sort_order=2, is_active=True)
-        second_response = self.client.get("/api/v1/pages/services/")
-
-        self.assertEqual(second_response.status_code, 200)
-        self.assertEqual(len(second_response.data["items"]), 2)
-
     def test_wagtail_registers_content_snippets_only(self):
         snippet_models = set(get_snippet_models())
         self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem} <= snippet_models)
@@ -199,20 +186,22 @@ class PublicApiTests(TestCase):
         variants = search_variants("с-стенд")
         self.assertIn("c-stand", variants)
 
-    def test_rental_filters_and_lead_routes_are_removed(self):
+    def test_removed_legacy_routes_return_404(self):
+        self.assertEqual(self.client.get("/api/v1/pages/services/").status_code, 404)
+        self.assertEqual(self.client.get("/api/v1/settings/footer/").status_code, 404)
         self.assertEqual(self.client.get("/api/v1/rental/filters/").status_code, 404)
         self.assertEqual(self.client.post("/api/v1/leads/", {}).status_code, 404)
         self.assertEqual(self.client.post("/api/v1/rental/leads/", {}).status_code, 404)
 
-    def test_contacts_endpoint_returns_contact_copy_without_lead_wording(self):
+    def test_contacts_endpoint_returns_contact_copy_only(self):
         call_command("seed_figma_content", verbosity=0)
 
         response = self.client.get("/api/v1/pages/contacts/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["section_title"], "КОНТАКТЫ")
-        self.assertEqual(response.data["form"]["title"], "СВЯЗАТЬСЯ С НАМИ")
-        self.assertEqual(response.data["form"]["fields"]["message"]["label"], "Сообщение")
+        self.assertEqual(response.data["email"], "red.queen.by@gmail.com")
+        self.assertNotIn("form", response.data)
 
     def test_project_video_file_and_external_url_are_mutually_exclusive(self):
         project_category = ProjectCategory.objects.create(title="Film", slug="film")
@@ -244,7 +233,6 @@ class PublicApiTests(TestCase):
 
         contact_settings = ContactSettings.objects.get()
         self.assertEqual(contact_settings.email, "red.queen.by@gmail.com")
-        self.assertEqual(contact_settings.form_message_placeholder, "Ваш текст")
 
         home_response = self.client.get("/api/v1/pages/home/")
         self.assertEqual(home_response.status_code, 200)

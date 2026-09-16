@@ -5,7 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from cms.models import ContactSettings, FooterSettings, HomePage, MainPageSectionSettings
+from cms.models import ContactSettings, HomePage, MainPageSectionSettings
 from services.models import ServiceBlock
 
 
@@ -68,21 +68,6 @@ def home_page(request):
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
 @api_view(["GET"])
-def services_page(request):
-    def build():
-        services = ServiceBlock.objects.filter(is_active=True).order_by("sort_order", "id")
-        return {
-            "items": [
-                {"title": item.title, "text": item.text, "sort_order": item.sort_order}
-                for item in services
-            ],
-        }
-
-    return cached_response("api:pages:services", build)
-
-
-@extend_schema(responses=OpenApiTypes.OBJECT)
-@api_view(["GET"])
 def contacts_settings(request):
     def build():
         contact_settings = ContactSettings.for_request(request)
@@ -94,40 +79,6 @@ def contacts_settings(request):
             "telegram": contact_settings.telegram,
             "instagram": contact_settings.instagram,
             "youtube": contact_settings.youtube,
-            "form": {
-                "title": contact_settings.form_title,
-                "fields": {
-                    "name": {
-                        "label": contact_settings.form_name_label,
-                        "placeholder": contact_settings.form_name_placeholder,
-                    },
-                    "phone": {
-                        "label": contact_settings.form_phone_label,
-                        "placeholder": contact_settings.form_phone_placeholder,
-                    },
-                    "email": {
-                        "label": contact_settings.form_email_label,
-                        "placeholder": contact_settings.form_email_placeholder,
-                    },
-                    "message": {
-                        "label": contact_settings.form_message_label,
-                        "placeholder": contact_settings.form_message_placeholder,
-                    },
-                },
-            },
         }
 
     return cached_response("api:settings:contacts", build)
-
-
-@extend_schema(responses=OpenApiTypes.OBJECT)
-@api_view(["GET"])
-def footer_settings(request):
-    def build():
-        footer_settings = FooterSettings.for_request(request)
-        return {
-            "details_text": footer_settings.details_text,
-            "contacts_text": footer_settings.contacts_text,
-        }
-
-    return cached_response("api:settings:footer", build)
