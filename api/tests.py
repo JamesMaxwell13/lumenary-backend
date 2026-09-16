@@ -6,10 +6,18 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
+from wagtail.admin.menu import MenuItem
 from wagtail.snippets.models import get_snippet_models
 
 from cms.models import ContactSettings, HomePage, MainPageSectionSettings
-from cms.wagtail_hooks import PortfolioGroup, RentalCategoryForm, RentalGroup, ServicesGroup
+from cms.wagtail_hooks import (
+    PortfolioGroup,
+    RentalCategoryForm,
+    RentalGroup,
+    ServicesGroup,
+    arrange_main_menu,
+    register_contacts_menu_item,
+)
 from projects.models import Project, ProjectCategory, PublishStatus as ProjectPublishStatus
 from rental.api import search_variants
 from rental.models import (
@@ -66,10 +74,33 @@ class PublicApiTests(TestCase):
 
     def test_wagtail_content_admin_groups_use_plain_russian_labels(self):
         self.assertEqual(ServicesGroup.menu_label, "Услуги")
-        self.assertEqual(PortfolioGroup.menu_label, "Портфолио")
+        self.assertEqual(PortfolioGroup.menu_label, "Проекты")
         self.assertEqual(RentalGroup.menu_label, "Аренда")
         self.assertEqual(Project.snippet_viewset.menu_label, "Проекты")
         self.assertEqual(RentalItem.snippet_viewset.menu_label, "Позиции аренды")
+
+    def test_wagtail_main_menu_matches_site_order_before_default_items(self):
+        contacts_item = register_contacts_menu_item()
+        menu_items = [
+            MenuItem("Страницы", "/admin/pages/", name="explorer", order=100),
+            MenuItem("Изображения", "/admin/images/", name="images", order=300),
+            MenuItem("Главная", "/admin/pages/1/edit/", name="home", order=90),
+            MenuItem("Услуги", "/admin/services/", name="services-content", order=100),
+            MenuItem("Проекты", "/admin/projects/", name="portfolio", order=200),
+            MenuItem("Аренда", "/admin/rental/", name="rental-content", order=300),
+            contacts_item,
+        ]
+
+        arrange_main_menu(None, menu_items)
+        ordered_names = [item.name for item in sorted(menu_items, key=lambda item: item.order)]
+
+        self.assertNotIn("explorer", ordered_names)
+        self.assertEqual(
+            ordered_names[:5],
+            ["home", "services-content", "portfolio", "rental-content", "contacts"],
+        )
+        self.assertGreater(next(item.order for item in menu_items if item.name == "images"), 500)
+        self.assertEqual(contacts_item.url, "/admin/settings/cms/contactsettings/")
 
     def test_rental_category_form_creates_nested_categories(self):
         root_form = RentalCategoryForm(

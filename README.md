@@ -1,54 +1,116 @@
 # Lumenary Backend
 
-Headless backend для сайта Lumenary.
+Backend - это админка и API сайта. Через него редактируются главная страница, услуги, проекты, каталог аренды, контакты и футер.
 
-## Стек
+Локальные адреса:
 
-- Django
-- Django REST Framework
-- Wagtail
-- PostgreSQL
-- Redis
-- Celery
-- S3-compatible storage
+- Админка: http://127.0.0.1:8000/admin/
+- Документация API: http://127.0.0.1:8000/api/docs/
+- Техническая схема API: http://127.0.0.1:8000/api/schema/
 
-## Основная модель
+## Что установить один раз
 
-- `cms` хранит первый экран главной страницы, тексты секций, контакты и футер.
-- `services` хранит карточки услуг.
-- `projects` хранит портфолио и detail-страницы кейсов.
-- `rental` хранит каталог аренды: разделы, подразделы, позиции и поиск.
-- `leads` и `notifications` оставлены в кодовой базе как будущий отключенный модуль обращений, но сейчас не подключаются в `INSTALLED_APPS` и не имеют публичных endpoints.
+1. Python 3.12 или новее: https://www.python.org/downloads/
+2. Docker Desktop: https://www.docker.com/products/docker-desktop/
+3. Git: https://git-scm.com/downloads
 
-## Быстрый старт
+При установке Python включите галочку `Add python.exe to PATH`.
+
+## Первый запуск
+
+Откройте PowerShell в папке проекта:
+
+```powershell
+cd D:\work\Lumenary-web
+```
+
+Запустите базу данных и служебные контейнеры:
+
+```powershell
+docker compose up -d postgres redis minio
+```
+
+Перейдите в backend, создайте окружение и установите зависимости:
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_figma_content
-python manage.py runserver
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-Для запуска всего проекта из корня используйте `make dev`.
+Подготовьте базу и стартовый контент:
 
-## Redis
+```powershell
+python manage.py migrate
+python manage.py seed_figma_content
+```
 
-Локальный Redis описан в корневом `docker-compose.yml`.
+Создайте пользователя для входа в админку:
 
-- `REDIS_URL` / `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` используют DB `0` для Celery.
-- `CACHE_URL` использует DB `1` для Django cache.
-- Если `CACHE_URL` пустой, backend использует in-memory cache для локальной разработки.
+```powershell
+python manage.py createsuperuser
+```
 
-## Админка Wagtail
+Запустите backend:
 
-Главная страница в меню админки ведет прямо на редактирование первого экрана из Figma: название продакшена, описание, теги и showreel.
+```powershell
+python manage.py runserver 127.0.0.1:8000
+```
 
-Остальные части лендинга лежат рядом:
+После запуска откройте http://127.0.0.1:8000/admin/ и войдите под созданным логином и паролем.
 
-- `Услуги` — карточки услуг.
-- `Портфолио` — проекты и разделы проектов.
-- `Аренда` — разделы, подразделы и позиции аренды.
-- `Настройки` — тексты секций главной, контакты и футер.
+## Обычный запуск
+
+Если первый запуск уже был сделан, обычно нужны только эти команды:
+
+```powershell
+cd D:\work\Lumenary-web
+docker compose up -d postgres redis minio
+cd backend
+.\.venv\Scripts\Activate.ps1
+python manage.py runserver 127.0.0.1:8000
+```
+
+## Где редактировать сайт
+
+- `Страницы` -> главная страница: первый экран, заголовок, текст, теги, showreel.
+- `Услуги`: карточки услуг на главной.
+- `Портфолио`: категории и проекты.
+- `Аренда`: категории, подкатегории, позиции и характеристики.
+- `Настройки` -> тексты секций главной: заголовки основных блоков.
+- `Настройки` -> контакты: email, телефон, адрес и соцсети.
+- `Настройки` -> футер: реквизиты и дополнительный текст внизу сайта.
+
+После редактирования страницы нажмите `Опубликовать`. В настройках и справочниках обычно достаточно нажать `Сохранить`.
+
+## Проверка
+
+Проверить, что backend настроен правильно:
+
+```powershell
+python manage.py check --database default
+python manage.py makemigrations --check --dry-run
+python manage.py spectacular --file openapi-check.yaml --validate
+```
+
+Запустить тесты:
+
+```powershell
+python manage.py test --settings=config.test_settings
+```
+
+Если тесты не могут создать тестовую базу, дайте пользователю PostgreSQL право создавать базы:
+
+```sql
+ALTER ROLE "Lumenary" CREATEDB;
+```
+
+## Если что-то не работает
+
+- Docker Desktop должен быть открыт.
+- Проверить контейнеры можно командой `docker compose ps`.
+- Если PowerShell не видит `python`, переустановите Python с галочкой `Add python.exe to PATH`.
+- Если порт `8000` занят, остановите старый backend или запустите временно так: `python manage.py runserver 127.0.0.1:8001`.
+- Если frontend не получает данные, проверьте, что backend запущен именно на `http://127.0.0.1:8000/`.

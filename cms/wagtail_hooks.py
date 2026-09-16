@@ -127,15 +127,15 @@ class ServicesGroup(SnippetViewSetGroup):
     menu_label = "Услуги"
     menu_name = "services-content"
     menu_icon = "list-ul"
-    menu_order = 100
+    menu_order = 200
     items = (ServiceBlockViewSet,)
 
 
 class PortfolioGroup(SnippetViewSetGroup):
-    menu_label = "Портфолио"
+    menu_label = "Проекты"
     menu_name = "portfolio"
     menu_icon = "media"
-    menu_order = 200
+    menu_order = 300
     items = (ProjectViewSet, ProjectCategoryViewSet)
 
 
@@ -143,8 +143,17 @@ class RentalGroup(SnippetViewSetGroup):
     menu_label = "Аренда"
     menu_name = "rental-content"
     menu_icon = "pick"
-    menu_order = 300
+    menu_order = 400
     items = (RentalItemViewSet, RentalCategoryViewSet)
+
+
+SITE_MENU_ORDER = {
+    "home": 100,
+    "services-content": 200,
+    "portfolio": 300,
+    "rental-content": 400,
+    "contacts": 500,
+}
 
 
 @hooks.register("register_admin_menu_item")
@@ -154,7 +163,23 @@ def register_home_page_menu_item():
         url = reverse("wagtailadmin_pages:edit", args=[home_page.pk])
     else:
         url = reverse("wagtailadmin_explore_root")
-    return MenuItem("Главная", url, icon_name="home", order=90)
+    return MenuItem("Главная", url, icon_name="home", name="home", order=SITE_MENU_ORDER["home"])
+
+
+@hooks.register("register_admin_menu_item")
+def register_contacts_menu_item():
+    url = reverse("wagtailsettings:edit", args=["cms", "contactsettings"])
+    return MenuItem("Контакты", url, icon_name="mail", name="contacts", order=SITE_MENU_ORDER["contacts"])
+
+
+@hooks.register("construct_main_menu")
+def arrange_main_menu(request, menu_items):
+    menu_items[:] = [item for item in menu_items if item.name != "explorer"]
+    for item in menu_items:
+        if item.name in SITE_MENU_ORDER:
+            item.order = SITE_MENU_ORDER[item.name]
+        else:
+            item.order = max(item.order, 1000)
 
 
 @hooks.register("register_admin_viewset")

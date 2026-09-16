@@ -140,7 +140,7 @@ RENTAL_ITEMS = [
 
 
 class Command(BaseCommand):
-    help = "Seed Wagtail/admin content with visible copy from the Figma web-main design."
+    help = "Create starter Wagtail/admin content for local development."
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -152,7 +152,7 @@ class Command(BaseCommand):
         self.seed_project_categories()
         self.seed_rental_categories()
         self.seed_rental_items()
-        self.stdout.write(self.style.SUCCESS(f"Seeded Figma content for HomePage #{home_page.pk}."))
+        self.stdout.write(self.style.SUCCESS(f"Seeded starter content for HomePage #{home_page.pk}."))
 
     def seed_home_page(self):
         home_page = HomePage.objects.first()
