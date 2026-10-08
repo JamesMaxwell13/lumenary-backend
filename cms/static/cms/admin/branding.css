@@ -1,0 +1,12 @@
+.lumenary-admin-logo {
+  display: block;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+}
+
+.login-logo .lumenary-admin-logo {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto;
+}

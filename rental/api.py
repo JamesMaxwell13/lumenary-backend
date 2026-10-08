@@ -6,7 +6,11 @@ from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework import serializers, viewsets
 from rest_framework.response import Response
 
+from cms.images import image_original_url, image_rendition_url
 from rental.models import RentalCategory, RentalItem
+
+
+RENTAL_MAIN_IMAGE_RENDITION = "fill-1200x900"
 
 
 EN_TO_RU_LAYOUT = str.maketrans(
@@ -83,10 +87,6 @@ RU_TO_LATIN_HINTS = {
 }
 
 
-def image_url(image):
-    return image.file.url if image else None
-
-
 class RentalCategoryTreeSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
 
@@ -149,7 +149,7 @@ class RentalItemListSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_main_image(self, obj):
-        return image_url(obj.main_image)
+        return image_rendition_url(obj.main_image, RENTAL_MAIN_IMAGE_RENDITION)
 
 
 class RentalItemDetailSerializer(RentalItemListSerializer):
@@ -170,7 +170,7 @@ class RentalItemDetailSerializer(RentalItemListSerializer):
     def get_gallery(self, obj):
         return [
             {
-                "image": image_url(item.image),
+                "image": image_original_url(item.image),
                 "caption": item.caption,
                 "sort_order": item.sort_order,
             }
@@ -202,7 +202,7 @@ class RentalItemViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = (
             RentalItem.objects.published()
-            .filter(is_active=True, category__is_active=True)
+            .filter(category__is_active=True)
             .select_related("category", "main_image")
             .prefetch_related("gallery__image", "attribute_values__attribute")
         )

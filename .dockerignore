@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+__pycache__
+*.py[cod]
+.env
+.env.*
+!.env.example
+media
+staticfiles
+openapi-check.yaml
+*.sqlite3
+.pytest_cache

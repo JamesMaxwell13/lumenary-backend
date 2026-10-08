@@ -5,11 +5,12 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers, viewsets
 from rest_framework.response import Response
 
+from cms.images import image_original_url, image_rendition_url
+from cms.media import video_status
 from projects.models import Project, ProjectCategory
 
 
-def image_url(image):
-    return image.file.url if image else None
+PROJECT_COVER_RENDITION = "fill-1280x720"
 
 
 class ProjectCategorySerializer(serializers.ModelSerializer):
@@ -21,8 +22,8 @@ class ProjectCategorySerializer(serializers.ModelSerializer):
 class ProjectListSerializer(serializers.ModelSerializer):
     category = ProjectCategorySerializer()
     cover_image = serializers.SerializerMethodField()
-    video_preview = serializers.SerializerMethodField()
     video_url = serializers.SerializerMethodField()
+    video_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -31,23 +32,23 @@ class ProjectListSerializer(serializers.ModelSerializer):
             "slug",
             "category",
             "cover_image",
-            "video_preview",
             "video_url",
+            "video_status",
             "short_caption",
             "is_featured",
         ]
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_cover_image(self, obj):
-        return image_url(obj.cover_image)
-
-    @extend_schema_field(OpenApiTypes.URI)
-    def get_video_preview(self, obj):
-        return image_url(obj.video_preview)
+        return image_rendition_url(obj.cover_image, PROJECT_COVER_RENDITION)
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_video_url(self, obj):
         return obj.video_file.url if obj.video_file else obj.external_video_url
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_video_status(self, obj):
+        return video_status(obj.video_file, obj.external_video_url)
 
 
 class ProjectDetailSerializer(ProjectListSerializer):
@@ -75,7 +76,7 @@ class ProjectDetailSerializer(ProjectListSerializer):
     def get_gallery(self, obj):
         return [
             {
-                "image": image_url(item.image),
+                "image": image_original_url(item.image),
                 "caption": item.caption,
                 "sort_order": item.sort_order,
             }
@@ -106,7 +107,7 @@ class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = (
             Project.objects.published()
             .filter(category__is_active=True)
-            .select_related("category", "cover_image", "video_preview")
+            .select_related("category", "cover_image")
             .prefetch_related("gallery__image")
         )
         category = self.request.query_params.get("category")

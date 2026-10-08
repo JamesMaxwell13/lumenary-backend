@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -17,12 +19,15 @@ from cms.wagtail_hooks import (
     ServicesGroup,
     arrange_main_menu,
     register_contacts_menu_item,
+    register_site_copy_menu_item,
 )
+from config.media import ranged_media_response
 from projects.models import Project, ProjectCategory, PublishStatus as ProjectPublishStatus
 from rental.api import search_variants
 from rental.models import (
     PublishStatus as RentalPublishStatus,
     RentalCategory,
+    RentalAttribute,
     RentalItem,
     RentalStatus,
 )
@@ -45,7 +50,7 @@ class PublicApiTests(TestCase):
 
     def test_wagtail_registers_content_snippets_only(self):
         snippet_models = set(get_snippet_models())
-        self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem} <= snippet_models)
+        self.assertTrue({ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute} <= snippet_models)
 
     def test_content_snippet_indexes_are_available_to_superuser(self):
         user = get_user_model().objects.create_superuser(
@@ -54,7 +59,7 @@ class PublicApiTests(TestCase):
             password="test-password",
         )
         self.client.force_login(user)
-        for model in (ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem):
+        for model in (ServiceBlock, ProjectCategory, Project, RentalCategory, RentalItem, RentalAttribute):
             with self.subTest(model=model.__name__):
                 response = self.client.get(reverse(model.snippet_viewset.get_url_name("list")))
                 self.assertEqual(response.status_code, 200)
@@ -68,6 +73,7 @@ class PublicApiTests(TestCase):
 
     def test_wagtail_main_menu_matches_site_order_before_default_items(self):
         contacts_item = register_contacts_menu_item()
+        site_copy_item = register_site_copy_menu_item()
         menu_items = [
             MenuItem("Страницы", "/admin/pages/", name="explorer", order=100),
             MenuItem("Изображения", "/admin/images/", name="images", order=300),
@@ -76,6 +82,7 @@ class PublicApiTests(TestCase):
             MenuItem("Проекты", "/admin/projects/", name="portfolio", order=200),
             MenuItem("Аренда", "/admin/rental/", name="rental-content", order=300),
             contacts_item,
+            site_copy_item,
         ]
 
         arrange_main_menu(None, menu_items)
@@ -83,11 +90,17 @@ class PublicApiTests(TestCase):
 
         self.assertNotIn("explorer", ordered_names)
         self.assertEqual(
-            ordered_names[:5],
-            ["home", "services-content", "portfolio", "rental-content", "contacts"],
+            ordered_names[:6],
+            ["home", "services-content", "portfolio", "rental-content", "contacts", "site-copy"],
         )
         self.assertGreater(next(item.order for item in menu_items if item.name == "images"), 500)
         self.assertEqual(contacts_item.url, "/admin/settings/cms/contactsettings/")
+        self.assertEqual(site_copy_item.url, "/admin/settings/cms/mainpagesectionsettings/")
+
+    def test_health_endpoint_checks_database(self):
+        response = self.client.get("/api/v1/health/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"status": "ok"})
 
     def test_rental_category_form_creates_nested_categories(self):
         root_form = RentalCategoryForm(
@@ -119,6 +132,7 @@ class PublicApiTests(TestCase):
             title="Published project",
             slug="published-project",
             status=ProjectPublishStatus.PUBLISHED,
+            is_featured=True,
             published_at=timezone.now(),
         )
         Project.objects.create(
@@ -132,12 +146,18 @@ class PublicApiTests(TestCase):
         list_response = self.client.get("/api/v1/projects/")
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual([item["slug"] for item in list_response.data["results"]], [published.slug])
-        self.assertIn("video_preview", list_response.data["results"][0])
+        self.assertIn("cover_image", list_response.data["results"][0])
 
         detail_response = self.client.get(f"/api/v1/projects/{published.slug}/")
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.data["slug"], published.slug)
-        self.assertIn("video_preview", detail_response.data)
+        self.assertIn("cover_image", detail_response.data)
+
+        featured_response = self.client.get("/api/v1/projects/", {"featured": "true"})
+        self.assertEqual(
+            [item["slug"] for item in featured_response.data["results"]],
+            [published.slug],
+        )
 
     def test_rental_categories_are_returned_as_tree(self):
         root = RentalCategory.add_root(title="Equipment", slug="equipment", is_active=True)
@@ -201,6 +221,8 @@ class PublicApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["section_title"], "КОНТАКТЫ")
         self.assertEqual(response.data["email"], "red.queen.by@gmail.com")
+        self.assertIn("section_intro", response.data)
+        self.assertIn("footer_legal_text", response.data)
         self.assertNotIn("form", response.data)
 
     def test_project_video_file_and_external_url_are_mutually_exclusive(self):
@@ -215,28 +237,48 @@ class PublicApiTests(TestCase):
         with self.assertRaises(ValidationError):
             project.clean()
 
+    def test_dev_media_endpoint_supports_byte_ranges(self):
+        media_root = Path(__file__).resolve().parent.parent
+        source_size = (media_root / "manage.py").stat().st_size
+        request = RequestFactory().get("/media/manage.py", HTTP_RANGE="bytes=0-5")
+
+        with override_settings(MEDIA_ROOT=media_root):
+            response = ranged_media_response(request, "manage.py")
+            response_body = b"".join(response.streaming_content)
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response["Accept-Ranges"], "bytes")
+        self.assertEqual(response["Content-Range"], f"bytes 0-5/{source_size}")
+        self.assertEqual(response_body, b"#!/usr")
+
     def test_openapi_and_docs_urls_are_available(self):
         self.assertEqual(self.client.get("/api/schema/").status_code, 200)
         self.assertEqual(self.client.get("/api/docs/").status_code, 200)
 
-    def test_seed_figma_content_is_idempotent(self):
+    def test_seed_figma_content_preserves_existing_editorial_changes(self):
         call_command("seed_figma_content", verbosity=0)
+        home_page = HomePage.objects.get()
+        home_page.hero_text = "Текст редактора"
+        home_page.save_revision().publish()
         call_command("seed_figma_content", verbosity=0)
 
-        home_page = HomePage.objects.get()
+        home_page.refresh_from_db()
         self.assertEqual(home_page.hero_title, "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ")
-        self.assertEqual(home_page.hero_title_mobile, "ПРОДАКШН\nДЛЯ КИНО\nИ РЕКЛАМЫ")
+        self.assertEqual(home_page.hero_title_mobile, "ПРОДАКШН\nДЛЯ КИНО И РЕКЛАМЫ")
+        self.assertEqual(home_page.hero_text, "Текст редактора")
         self.assertFalse(hasattr(home_page, "projects_title"))
 
         section_settings = MainPageSectionSettings.objects.get()
         self.assertEqual(section_settings.projects_title, "НАШИ ПРОЕКТЫ")
+        self.assertTrue(section_settings.projects_page_intro)
 
         contact_settings = ContactSettings.objects.get()
         self.assertEqual(contact_settings.email, "red.queen.by@gmail.com")
+        self.assertTrue(contact_settings.footer_legal_text)
 
         home_response = self.client.get("/api/v1/pages/home/")
         self.assertEqual(home_response.status_code, 200)
-        self.assertIn("video_preview", home_response.data["hero"])
+        self.assertIn("video_url", home_response.data["hero"])
 
         self.assertEqual(ServiceBlock.objects.filter(title="АРЕНДА").count(), 1)
         self.assertEqual(ProjectCategory.objects.filter(slug="music-videos", title="КЛИПЫ").count(), 1)
@@ -263,6 +305,5 @@ class PublicApiTests(TestCase):
             price=price,
             status=status,
             publication_status=publication_status,
-            is_active=True,
             published_at=timezone.now(),
         )

@@ -14,12 +14,9 @@ HOME_PAGE_COPY = {
     "title": "Lumenary",
     "slug": "Lumenary",
     "hero_title": "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ",
-    "hero_title_mobile": "ПРОДАКШН\nДЛЯ КИНО\nИ РЕКЛАМЫ",
-    "hero_text": (
-        "Снимаем рекламу, клипы, сериалы, документальные и художественные фильмы. \n"
-        "Ведём полный цикл проектов, включающий подготовку, съемки и постпродакшн."
-    ),
-    "hero_tags": "кино / клипы / реклама / промо / reels /\nсъёмка / аренда /постпродакшн",
+    "hero_title_mobile": "ПРОДАКШН\nДЛЯ КИНО И РЕКЛАМЫ",
+    "hero_text": "Продакшн полного цикла, закрываем любые задачи по видеоконтенту.",
+    "hero_tags": "кино / клипы / реклама / промо / reels / аренда / постпродакшн",
     "nav_about_label": "О НАС",
     "nav_services_label": "УСЛУГИ",
     "nav_projects_label": "ПРОЕКТЫ",
@@ -31,35 +28,50 @@ SECTION_COPY = {
     "services_title": "УСЛУГИ",
     "services_intro": (
         "Собираем индивидуальную команду под каждый проект. \n"
-        "Помогаем воплотить любую вашу идею в жизнь"
+        "Помогаем воплотить вашу идею в жизнь"
     ),
     "projects_title": "НАШИ ПРОЕКТЫ",
+    "projects_page_intro": "Выберите категорию и откройте страницу проекта с видео, кадрами и описанием.",
+    "projects_cta_title": "У вас есть своя идея?",
+    "projects_cta_text": "Проконсультируем и поможем воплотить вашу идею с гарантированным результатом.",
     "rental_title": "АРЕНДА",
     "rental_search_label": "ПОИСК",
+    "rental_page_intro": "Выберите раздел, подраздел или найдите позицию по названию.",
+    "rental_cta_title": "Нужна консультация?",
+    "rental_cta_text": "Напишите нам и мы поможем подобрать реквизит или костюмы для вашей задумки",
 }
 
 CONTACT_COPY = {
     "section_title": "КОНТАКТЫ",
+    "section_intro": (
+        "Напишите продакшену напрямую. Быстрее всего связаться в Telegram или по телефону, "
+        "а детали съемки, аренды и постпродакшна согласуем в личном разговоре."
+    ),
     "email": "red.queen.by@gmail.com",
     "phone": "+37529123456",
-    "address": "ул. Розы Люксембург 95\nг.Минск",
+    "address": "г. Минск, ул. Розы Люксембург 95",
     "telegram": "@Lumenary_By",
     "instagram": "@Lumenary_By",
     "youtube": "@Lumenary_By",
+    "footer_legal_text": (
+        "© 2026 Lumenary\n"
+        "ООО \"РэдКвин\" УНП 193775701\n"
+        "Юр. адрес: 220040 г.Минск 3-й переулок Можайского д.11, пом. 109"
+    ),
 }
 
 SERVICES = [
     (
         "ПРЕ-ПРОДАКШН",
-        "Считаем смету, собираем команду, утверждаем график, локации, логистику, технику и расходные материалы. Создаем календарно-постановочный план.",
+        "Прописываем сценарий, создаем кпп, считаем смету, собираем команду, занимаемся поиском актеров, подбираем и готовим локации, подбираем технику и расходные материалы,  занимаемся всеми юридическими вопросами.",
     ),
     (
         "СЪЁМКА",
-        "Организуем съёмочный процесс в соотвестсвии с календарно-постановочным планом, решаем текущие проблемы и вопросы на площадке.",
+        "Организуем и проводим съёмочный процесс в соотвестсвии со сценарием и  календарно-постановочным планом",
     ),
     (
-        "ПОСТ-\nПРОДАКШН",
-        "Делаем монтаж, цветокоррекцию, обработку звука, графику и финальные версии под необходимые платформы. Готовим фильмы к прокату в кинотеатрах.",
+        "ПОСТ-ПРОДАКШН",
+        "Осуществляем монтаж, цветокоррекцию, обработку звука, графику и финальные версии под необходимые платформы. Готовим полный пакет документов к выпуску фильмов в видеопрокат и ведем всю деятельность от начала до конца.",
     ),
     (
         "АРЕНДА",
@@ -133,8 +145,16 @@ RENTAL_ITEMS = [
 class Command(BaseCommand):
     help = "Create starter Wagtail/admin content for local development."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Перезаписать существующий стартовый контент значениями из команды.",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
+        self.force = options["force"]
         home_page = self.seed_home_page()
         self.ensure_default_site(home_page)
         self.seed_section_settings()
@@ -154,7 +174,7 @@ class Command(BaseCommand):
             home_page = HomePage(**HOME_PAGE_COPY)
             root.add_child(instance=home_page)
             home_page.save_revision().publish()
-        else:
+        elif self.force:
             for field, value in HOME_PAGE_COPY.items():
                 setattr(home_page, field, value)
             home_page.save_revision().publish()
@@ -171,31 +191,41 @@ class Command(BaseCommand):
 
     def seed_section_settings(self):
         for site in Site.objects.all():
-            section_settings, _ = MainPageSectionSettings.objects.get_or_create(site=site)
-            for field, value in SECTION_COPY.items():
-                setattr(section_settings, field, value)
-            section_settings.save()
+            section_settings, created = MainPageSectionSettings.objects.get_or_create(
+                site=site,
+                defaults=SECTION_COPY,
+            )
+            if self.force and not created:
+                for field, value in SECTION_COPY.items():
+                    setattr(section_settings, field, value)
+                section_settings.save()
 
     def seed_contacts(self):
         for site in Site.objects.all():
-            contact_settings, _ = ContactSettings.objects.get_or_create(site=site)
-            for field, value in CONTACT_COPY.items():
-                setattr(contact_settings, field, value)
-            contact_settings.save()
+            contact_settings, created = ContactSettings.objects.get_or_create(
+                site=site,
+                defaults=CONTACT_COPY,
+            )
+            if self.force and not created:
+                for field, value in CONTACT_COPY.items():
+                    setattr(contact_settings, field, value)
+                contact_settings.save()
 
     def seed_services(self):
         for sort_order, (title, text) in enumerate(SERVICES, start=1):
-            ServiceBlock.objects.update_or_create(
-                title=title,
-                defaults={"text": text, "sort_order": sort_order, "is_active": True},
-            )
+            defaults = {"text": text, "sort_order": sort_order, "is_active": True}
+            if self.force:
+                ServiceBlock.objects.update_or_create(title=title, defaults=defaults)
+            else:
+                ServiceBlock.objects.get_or_create(title=title, defaults=defaults)
 
     def seed_project_categories(self):
         for sort_order, (title, slug) in enumerate(PROJECT_CATEGORIES, start=1):
-            ProjectCategory.objects.update_or_create(
-                slug=slug,
-                defaults={"title": title, "sort_order": sort_order, "is_active": True},
-            )
+            defaults = {"title": title, "sort_order": sort_order, "is_active": True}
+            if self.force:
+                ProjectCategory.objects.update_or_create(slug=slug, defaults=defaults)
+            else:
+                ProjectCategory.objects.get_or_create(slug=slug, defaults=defaults)
 
     def seed_rental_categories(self):
         categories_by_slug = {category.slug: category for category in RentalCategory.objects.all()}
@@ -209,29 +239,30 @@ class Command(BaseCommand):
                     category = RentalCategory.add_root(title=title, slug=slug, sort_order=sort_order, is_active=True)
                 categories_by_slug[slug] = category
                 continue
-            category.title = title
-            category.sort_order = sort_order
-            category.is_active = True
-            category.save(update_fields=["title", "sort_order", "is_active"])
+            if self.force:
+                category.title = title
+                category.sort_order = sort_order
+                category.is_active = True
+                category.save(update_fields=["title", "sort_order", "is_active"])
 
     def seed_rental_items(self):
         categories_by_slug = {category.slug: category for category in RentalCategory.objects.all()}
         for sort_order, item in enumerate(RENTAL_ITEMS, start=1):
             category = categories_by_slug[item["category_slug"]]
-            RentalItem.objects.update_or_create(
-                slug=item["slug"],
-                defaults={
-                    "category": category,
-                    "title": item["title"],
-                    "short_description": item["short_description"],
-                    "search_aliases": item["search_aliases"],
-                    "description": item["description"],
-                    "price": item["price"],
-                    "price_unit": item["price_unit"],
-                    "status": RentalStatus.AVAILABLE,
-                    "publication_status": PublishStatus.PUBLISHED,
-                    "sort_order": sort_order,
-                    "is_active": True,
-                    "published_at": timezone.now(),
-                },
-            )
+            defaults = {
+                "category": category,
+                "title": item["title"],
+                "short_description": item["short_description"],
+                "search_aliases": item["search_aliases"],
+                "description": item["description"],
+                "price": item["price"],
+                "price_unit": item["price_unit"],
+                "status": RentalStatus.AVAILABLE,
+                "publication_status": PublishStatus.PUBLISHED,
+                "sort_order": sort_order,
+                "published_at": timezone.now(),
+            }
+            if self.force:
+                RentalItem.objects.update_or_create(slug=item["slug"], defaults=defaults)
+            else:
+                RentalItem.objects.get_or_create(slug=item["slug"], defaults=defaults)

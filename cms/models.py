@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from wagtail.admin.panels import FieldPanel, HelpPanel, MultiFieldPanel
 from wagtail.contrib.settings.models import BaseSiteSetting, register_setting
@@ -18,14 +19,7 @@ class HomePage(Page):
         on_delete=models.SET_NULL,
         related_name="+",
     )
-    hero_video_preview = models.ForeignKey(
-        get_image_model_string(),
-        verbose_name="Превью основного showreel",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="+",
-    )
+    hero_video_file = models.FileField("Видео-файл showreel", upload_to="showreel-videos/", blank=True)
     hero_video_url = models.URLField("Ссылка на основной showreel", blank=True)
     nav_about_label = models.CharField("Меню: о нас", max_length=64, default="О НАС")
     nav_services_label = models.CharField("Меню: услуги", max_length=64, default="УСЛУГИ")
@@ -51,7 +45,7 @@ class HomePage(Page):
                 FieldPanel("hero_text"),
                 FieldPanel("hero_tags"),
                 FieldPanel("hero_image"),
-                FieldPanel("hero_video_preview"),
+                FieldPanel("hero_video_file"),
                 FieldPanel("hero_video_url"),
             ],
             heading="Первый экран и showreel",
@@ -68,14 +62,27 @@ class HomePage(Page):
         ),
     ]
 
+    def clean(self):
+        super().clean()
+        if self.hero_video_file and self.hero_video_url:
+            raise ValidationError(
+                {"hero_video_url": "Укажите видео-файл или внешнюю ссылку, но не оба варианта одновременно."}
+            )
+
 
 @register_setting
 class MainPageSectionSettings(BaseSiteSetting):
     services_title = models.CharField("Заголовок блока услуг", max_length=120, default="УСЛУГИ")
     services_intro = models.TextField("Вводный текст услуг", blank=True)
     projects_title = models.CharField("Заголовок портфолио", max_length=120, default="НАШИ ПРОЕКТЫ")
+    projects_page_intro = models.TextField("Описание страницы проектов", blank=True)
+    projects_cta_title = models.CharField("Заголовок призыва в проектах", max_length=160, blank=True)
+    projects_cta_text = models.TextField("Текст призыва в проектах", blank=True)
     rental_title = models.CharField("Заголовок аренды", max_length=120, default="АРЕНДА")
     rental_search_label = models.CharField("Подпись поиска аренды", max_length=64, default="ПОИСК")
+    rental_page_intro = models.TextField("Описание страницы аренды", blank=True)
+    rental_cta_title = models.CharField("Заголовок призыва в аренде", max_length=160, blank=True)
+    rental_cta_text = models.TextField("Текст призыва в аренде", blank=True)
 
     panels = [
         HelpPanel(
@@ -91,9 +98,23 @@ class MainPageSectionSettings(BaseSiteSetting):
             [FieldPanel("services_title"), FieldPanel("services_intro")],
             heading="Услуги",
         ),
-        MultiFieldPanel([FieldPanel("projects_title")], heading="Портфолио"),
         MultiFieldPanel(
-            [FieldPanel("rental_title"), FieldPanel("rental_search_label")],
+            [
+                FieldPanel("projects_title"),
+                FieldPanel("projects_page_intro"),
+                FieldPanel("projects_cta_title"),
+                FieldPanel("projects_cta_text"),
+            ],
+            heading="Проекты",
+        ),
+        MultiFieldPanel(
+            [
+                FieldPanel("rental_title"),
+                FieldPanel("rental_search_label"),
+                FieldPanel("rental_page_intro"),
+                FieldPanel("rental_cta_title"),
+                FieldPanel("rental_cta_text"),
+            ],
             heading="Аренда",
         ),
     ]
@@ -106,23 +127,27 @@ class MainPageSectionSettings(BaseSiteSetting):
 @register_setting
 class ContactSettings(BaseSiteSetting):
     section_title = models.CharField("Заголовок контактов", max_length=120, default="КОНТАКТЫ")
+    section_intro = models.TextField("Описание блока контактов", blank=True)
     email = models.EmailField("Email", blank=True)
     phone = models.CharField("Телефон", max_length=64, blank=True)
     address = models.CharField("Адрес", max_length=255, blank=True)
     telegram = models.CharField("Telegram", max_length=128, blank=True)
     instagram = models.CharField("Instagram", max_length=128, blank=True)
     youtube = models.CharField("Youtube", max_length=128, blank=True)
+    footer_legal_text = models.TextField("Юридический текст в футере", blank=True)
 
     panels = [
         MultiFieldPanel(
             [
                 FieldPanel("section_title"),
+                FieldPanel("section_intro"),
                 FieldPanel("email"),
                 FieldPanel("phone"),
                 FieldPanel("address"),
                 FieldPanel("telegram"),
                 FieldPanel("instagram"),
                 FieldPanel("youtube"),
+                FieldPanel("footer_legal_text"),
             ],
             heading="Контакты на сайте",
         ),

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -69,6 +70,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -118,6 +120,10 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -162,20 +168,46 @@ else:
 WAGTAIL_SITE_NAME = "Lumenary"
 WAGTAILADMIN_BASE_URL = env("ADMIN_BASE_URL", "http://localhost:8000")
 
-REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", REDIS_URL)
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", REDIS_URL)
+REDIS_URL = env("REDIS_URL")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", REDIS_URL or "memory://")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", REDIS_URL or "cache+memory://")
 
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL")
+AWS_S3_PUBLIC_URL = env("AWS_S3_PUBLIC_URL")
 AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", "auto")
+AWS_S3_ADDRESSING_STYLE = env("AWS_S3_ADDRESSING_STYLE", "path")
+AWS_S3_SIGNATURE_VERSION = env("AWS_S3_SIGNATURE_VERSION", "s3v4")
+AWS_QUERYSTRING_AUTH = env_bool("AWS_QUERYSTRING_AUTH", False)
+AWS_DEFAULT_ACL = env("AWS_DEFAULT_ACL") or None
+AWS_S3_FILE_OVERWRITE = env_bool("AWS_S3_FILE_OVERWRITE", False)
+AWS_S3_VERIFY = env_bool("AWS_S3_VERIFY", True)
+AWS_S3_MAX_MEMORY_SIZE = env_int("AWS_S3_MAX_MEMORY_SIZE", 0)
+AWS_S3_CACHE_CONTROL = env("AWS_S3_CACHE_CONTROL", "public, max-age=86400")
+AWS_S3_OBJECT_PARAMETERS = {"CacheControl": AWS_S3_CACHE_CONTROL}
 
 if AWS_STORAGE_BUCKET_NAME:
+    if AWS_S3_PUBLIC_URL:
+        parsed_public_s3_url = urlparse(AWS_S3_PUBLIC_URL.rstrip("/") + "/")
+        AWS_S3_URL_PROTOCOL = f"{parsed_public_s3_url.scheme}:"
+        AWS_S3_CUSTOM_DOMAIN = (
+            f"{parsed_public_s3_url.netloc}{parsed_public_s3_url.path.rstrip('/')}"
+        )
+
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
 
 ADMIN_BASE_URL = env("ADMIN_BASE_URL", WAGTAILADMIN_BASE_URL)
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", True)
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
+SECURE_HSTS_SECONDS = env_int("SECURE_HSTS_SECONDS", 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)

@@ -94,7 +94,6 @@ class RentalItem(ClusterableModel, models.Model):
         default=PublishStatus.DRAFT,
     )
     sort_order = models.PositiveIntegerField("Порядок", default=0)
-    is_active = models.BooleanField("Показывать на сайте", default=True)
     published_at = models.DateTimeField("Дата публикации", default=timezone.now)
     created_at = models.DateTimeField("Created at", auto_now_add=True)
     updated_at = models.DateTimeField("Updated at", auto_now=True)
@@ -108,15 +107,19 @@ class RentalItem(ClusterableModel, models.Model):
                 FieldPanel("title"),
                 FieldPanel("short_description"),
                 FieldPanel("search_aliases"),
-                FieldPanel("description"),
-                FieldPanel("detail_description"),
+                FieldPanel("description", heading="Описание для каталога"),
+                FieldPanel("detail_description", heading="Описание на странице позиции"),
                 FieldPanel("main_image"),
             ],
             heading="Позиция аренды",
         ),
         MultiFieldPanel(
-            [FieldPanel("price"), FieldPanel("price_on_request"), FieldPanel("price_unit")],
-            heading="Цена",
+            [FieldPanel("price"), FieldPanel("price_on_request"), FieldPanel("price_unit"), FieldPanel("status")],
+            heading="Цена и наличие",
+        ),
+        MultiFieldPanel(
+            [FieldPanel("publication_status"), FieldPanel("published_at")],
+            heading="Публикация",
         ),
         InlinePanel("gallery", label="Галерея"),
         InlinePanel("attribute_values", label="Характеристики"),
@@ -126,7 +129,7 @@ class RentalItem(ClusterableModel, models.Model):
             classname="collapsed",
         ),
         MultiFieldPanel(
-            [FieldPanel("slug"), FieldPanel("status"), FieldPanel("publication_status"), FieldPanel("sort_order"), FieldPanel("is_active"), FieldPanel("published_at")],
+            [FieldPanel("slug"), FieldPanel("sort_order")],
             heading="Технические настройки",
             classname="collapsed",
         ),

@@ -10,3 +10,5 @@ django-storages[boto3]>=1.14,<1.15
 django-filter>=24.3,<25.0
 django-cors-headers>=4.4,<5.0
 django-treebeard>=4.7,<5.0
+gunicorn>=23.0,<24.0
+whitenoise>=6.8,<7.0

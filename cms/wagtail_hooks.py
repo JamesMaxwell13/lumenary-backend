@@ -1,5 +1,7 @@
 from django import forms
+from django.templatetags.static import static
 from django.urls import reverse
+from django.utils.html import format_html
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
@@ -106,8 +108,8 @@ class RentalItemViewSet(SnippetViewSet):
     menu_label = "Позиции аренды"
     menu_name = "rental-items"
     menu_icon = "pick"
-    list_display = ["title", "category", "status", "publication_status", "is_active", "price"]
-    list_filter = ["category", "status", "publication_status", "is_active", "price_on_request"]
+    list_display = ["title", "category", "status", "publication_status", "price"]
+    list_filter = ["category", "status", "publication_status", "price_on_request"]
     search_fields = ["title", "slug", "short_description", "description", "detail_description"]
     ordering = ["sort_order", "title"]
 
@@ -144,7 +146,7 @@ class RentalGroup(SnippetViewSetGroup):
     menu_name = "rental-content"
     menu_icon = "pick"
     menu_order = 400
-    items = (RentalItemViewSet, RentalCategoryViewSet)
+    items = (RentalItemViewSet, RentalCategoryViewSet, RentalAttributeViewSet)
 
 
 SITE_MENU_ORDER = {
@@ -153,7 +155,18 @@ SITE_MENU_ORDER = {
     "portfolio": 300,
     "rental-content": 400,
     "contacts": 500,
+    "site-copy": 600,
 }
+
+
+@hooks.register("insert_global_admin_css")
+def global_admin_css():
+    return format_html('<link rel="stylesheet" href="{}">', static("cms/admin/branding.css"))
+
+
+@hooks.register("insert_global_admin_js")
+def global_admin_js():
+    return format_html('<script src="{}"></script>', static("cms/admin/branding.js"))
 
 
 @hooks.register("register_admin_menu_item")
@@ -170,6 +183,18 @@ def register_home_page_menu_item():
 def register_contacts_menu_item():
     url = reverse("wagtailsettings:edit", args=["cms", "contactsettings"])
     return MenuItem("Контакты", url, icon_name="mail", name="contacts", order=SITE_MENU_ORDER["contacts"])
+
+
+@hooks.register("register_admin_menu_item")
+def register_site_copy_menu_item():
+    url = reverse("wagtailsettings:edit", args=["cms", "mainpagesectionsettings"])
+    return MenuItem(
+        "Тексты сайта",
+        url,
+        icon_name="doc-full",
+        name="site-copy",
+        order=SITE_MENU_ORDER["site-copy"],
+    )
 
 
 @hooks.register("construct_main_menu")

@@ -23,5 +23,10 @@ CACHES = {
     }
 }
 
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
+
 MIGRATION_MODULES = DisableMigrations()
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

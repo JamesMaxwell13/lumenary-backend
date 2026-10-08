@@ -1,0 +1,32 @@
+{
+	email {$CADDY_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /admin/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /django-admin/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /documents/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /static/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}

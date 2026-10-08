@@ -53,15 +53,7 @@ class Project(ClusterableModel, models.Model):
     slug = models.SlugField("Slug", unique=True)
     cover_image = models.ForeignKey(
         get_image_model_string(),
-        verbose_name="Обложка",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="+",
-    )
-    video_preview = models.ForeignKey(
-        get_image_model_string(),
-        verbose_name="Превью видео",
+        verbose_name="Обложка / превью видео",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -98,7 +90,6 @@ class Project(ClusterableModel, models.Model):
                 FieldPanel("category"),
                 FieldPanel("title"),
                 FieldPanel("cover_image"),
-                FieldPanel("video_preview"),
                 FieldPanel("video_file"),
                 FieldPanel("external_video_url"),
                 FieldPanel("short_caption"),
@@ -108,11 +99,19 @@ class Project(ClusterableModel, models.Model):
         ),
         MultiFieldPanel(
             [
+                FieldPanel("status"),
+                FieldPanel("published_at"),
+                FieldPanel("is_featured"),
+            ],
+            heading="Публикация",
+        ),
+        MultiFieldPanel(
+            [
                 FieldPanel("client"),
                 FieldPanel("production_year"),
                 FieldPanel("role"),
-                FieldPanel("detail_title"),
-                FieldPanel("detail_text"),
+                FieldPanel("detail_title", heading="Заголовок страницы проекта"),
+                FieldPanel("detail_text", heading="Описание проекта"),
             ],
             heading="Страница проекта",
         ),
@@ -123,7 +122,7 @@ class Project(ClusterableModel, models.Model):
             classname="collapsed",
         ),
         MultiFieldPanel(
-            [FieldPanel("slug"), FieldPanel("sort_order"), FieldPanel("is_featured"), FieldPanel("status"), FieldPanel("published_at")],
+            [FieldPanel("slug"), FieldPanel("sort_order")],
             heading="Технические настройки",
             classname="collapsed",
         ),
@@ -141,7 +140,7 @@ class Project(ClusterableModel, models.Model):
         super().clean()
         if self.video_file and self.external_video_url:
             raise ValidationError(
-                {"external_video_url": "Use either a video file or an external video URL, not both."}
+                {"external_video_url": "Укажите видео-файл или внешнюю ссылку, но не оба варианта одновременно."}
             )
 
 
