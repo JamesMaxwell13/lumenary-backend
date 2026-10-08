@@ -10,14 +10,44 @@ the frontend repository only builds and updates `FRONTEND_IMAGE`.
    replacing the domains, and fill all `AWS_*` values.
 3. Copy this directory to `${VPS_APP_DIR}/deploy` and copy the repository-root
    `docker-compose.prod.yml` to `${VPS_APP_DIR}`.
-4. Run `docker compose pull`, `docker compose run --rm backend python manage.py
-   migrate --noinput`, and `docker compose up -d`.
+4. Restore the current PostgreSQL dump as described below. Then run
+   `docker compose run --rm backend python manage.py migrate --noinput` and
+   `docker compose up -d`.
 5. Verify `https://DOMAIN/api/v1/health/`, the admin, an image URL, and seeking
    in both the showreel and a project video.
 
 GitHub Actions repeats steps 3-5 on every push to `main`. The VPS `.env` stays
 on the server and is never committed. Required repository secrets are listed in
 the root README.
+
+## Moving the current content to production
+
+The repository contains no seed content. PostgreSQL is the source of truth, so
+create a custom-format dump from the current local database:
+
+```powershell
+docker compose exec postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --no-owner --no-acl -f /tmp/lumenary.dump'
+docker compose cp postgres:/tmp/lumenary.dump ./lumenary.dump
+```
+
+Copy `lumenary.dump` to the VPS application directory. Start only PostgreSQL,
+copy the dump into its container, restore it into the fresh empty database, and
+then apply migrations from the deployed backend image:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d postgres
+docker compose -f docker-compose.prod.yml cp ./lumenary.dump postgres:/tmp/lumenary.dump
+docker compose -f docker-compose.prod.yml exec postgres sh -c \
+  'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl \
+  --exit-on-error /tmp/lumenary.dump'
+docker compose -f docker-compose.prod.yml run --rm backend python manage.py migrate --noinput
+```
+
+A database dump stores media paths, not the file bytes. Copy the local `media/`
+tree or mirror the current MinIO bucket into the production S3 bucket without
+changing object keys. Verify the showreel, a project image, and a project video
+before switching DNS. Keep the dump outside Git and delete the server copy after
+the restore has been verified.
 
 ## Shared UNIX hosting
 

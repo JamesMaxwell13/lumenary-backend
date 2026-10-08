@@ -5,6 +5,8 @@ from wagtail.contrib.settings.models import BaseSiteSetting, register_setting
 from wagtail.images import get_image_model_string
 from wagtail.models import Page
 
+from cms.videos import validate_external_video_url
+
 
 class HomePage(Page):
     hero_title = models.TextField("Заголовок первого экрана")
@@ -20,12 +22,16 @@ class HomePage(Page):
         related_name="+",
     )
     hero_video_file = models.FileField("Видео-файл showreel", upload_to="showreel-videos/", blank=True)
-    hero_video_url = models.URLField("Ссылка на основной showreel", blank=True)
-    nav_about_label = models.CharField("Меню: о нас", max_length=64, default="О НАС")
-    nav_services_label = models.CharField("Меню: услуги", max_length=64, default="УСЛУГИ")
-    nav_projects_label = models.CharField("Меню: проекты", max_length=64, default="ПРОЕКТЫ")
-    nav_rental_label = models.CharField("Меню: аренда", max_length=64, default="АРЕНДА")
-    nav_contacts_label = models.CharField("Меню: контакты", max_length=64, default="КОНТАКТЫ")
+    hero_video_url = models.URLField(
+        "Ссылка на основной showreel",
+        blank=True,
+        help_text="YouTube, Vimeo или прямая ссылка на MP4-файл.",
+    )
+    nav_about_label = models.CharField("Меню: о нас", max_length=64, blank=True)
+    nav_services_label = models.CharField("Меню: услуги", max_length=64, blank=True)
+    nav_projects_label = models.CharField("Меню: проекты", max_length=64, blank=True)
+    nav_rental_label = models.CharField("Меню: аренда", max_length=64, blank=True)
+    nav_contacts_label = models.CharField("Меню: контакты", max_length=64, blank=True)
 
     content_panels = Page.content_panels + [
         HelpPanel(
@@ -68,18 +74,22 @@ class HomePage(Page):
             raise ValidationError(
                 {"hero_video_url": "Укажите видео-файл или внешнюю ссылку, но не оба варианта одновременно."}
             )
+        try:
+            validate_external_video_url(self.hero_video_url)
+        except ValidationError as error:
+            raise ValidationError({"hero_video_url": error.messages}) from error
 
 
 @register_setting
 class MainPageSectionSettings(BaseSiteSetting):
-    services_title = models.CharField("Заголовок блока услуг", max_length=120, default="УСЛУГИ")
+    services_title = models.CharField("Заголовок блока услуг", max_length=120, blank=True)
     services_intro = models.TextField("Вводный текст услуг", blank=True)
-    projects_title = models.CharField("Заголовок портфолио", max_length=120, default="НАШИ ПРОЕКТЫ")
+    projects_title = models.CharField("Заголовок портфолио", max_length=120, blank=True)
     projects_page_intro = models.TextField("Описание страницы проектов", blank=True)
     projects_cta_title = models.CharField("Заголовок призыва в проектах", max_length=160, blank=True)
     projects_cta_text = models.TextField("Текст призыва в проектах", blank=True)
-    rental_title = models.CharField("Заголовок аренды", max_length=120, default="АРЕНДА")
-    rental_search_label = models.CharField("Подпись поиска аренды", max_length=64, default="ПОИСК")
+    rental_title = models.CharField("Заголовок аренды", max_length=120, blank=True)
+    rental_search_label = models.CharField("Подпись поиска аренды", max_length=64, blank=True)
     rental_page_intro = models.TextField("Описание страницы аренды", blank=True)
     rental_cta_title = models.CharField("Заголовок призыва в аренде", max_length=160, blank=True)
     rental_cta_text = models.TextField("Текст призыва в аренде", blank=True)
@@ -126,7 +136,7 @@ class MainPageSectionSettings(BaseSiteSetting):
 
 @register_setting
 class ContactSettings(BaseSiteSetting):
-    section_title = models.CharField("Заголовок контактов", max_length=120, default="КОНТАКТЫ")
+    section_title = models.CharField("Заголовок контактов", max_length=120, blank=True)
     section_intro = models.TextField("Описание блока контактов", blank=True)
     email = models.EmailField("Email", blank=True)
     phone = models.CharField("Телефон", max_length=64, blank=True)

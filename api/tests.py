@@ -3,15 +3,16 @@ from pathlib import Path
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.core.management import call_command
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 from wagtail.admin.menu import MenuItem
+from wagtail.models import Locale, Page, Site
 from wagtail.snippets.models import get_snippet_models
 
-from cms.models import ContactSettings, HomePage, MainPageSectionSettings
+from cms.models import ContactSettings
+from cms.videos import external_video
 from cms.wagtail_hooks import (
     PortfolioGroup,
     RentalCategoryForm,
@@ -134,6 +135,7 @@ class PublicApiTests(TestCase):
             status=ProjectPublishStatus.PUBLISHED,
             is_featured=True,
             published_at=timezone.now(),
+            external_video_url="https://youtu.be/dQw4w9WgXcQ",
         )
         Project.objects.create(
             category=category,
@@ -147,6 +149,11 @@ class PublicApiTests(TestCase):
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual([item["slug"] for item in list_response.data["results"]], [published.slug])
         self.assertIn("cover_image", list_response.data["results"][0])
+        self.assertEqual(list_response.data["results"][0]["video_provider"], "youtube")
+        self.assertEqual(
+            list_response.data["results"][0]["video_embed_url"],
+            "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        )
 
         detail_response = self.client.get(f"/api/v1/projects/{published.slug}/")
         self.assertEqual(detail_response.status_code, 200)
@@ -214,13 +221,22 @@ class PublicApiTests(TestCase):
         self.assertEqual(self.client.post("/api/v1/rental/leads/", {}).status_code, 404)
 
     def test_contacts_endpoint_returns_contact_copy_only(self):
-        call_command("seed_figma_content", verbosity=0)
+        Locale.objects.create(language_code="ru")
+        root_page = Page.add_root(title="Root", slug="root")
+        site = Site.objects.create(hostname="testserver", root_page=root_page, is_default_site=True)
+        ContactSettings.objects.create(
+            site=site,
+            section_title="Связаться",
+            section_intro="Описание контактов",
+            email="editor@example.com",
+            footer_legal_text="Юридический текст",
+        )
 
         response = self.client.get("/api/v1/pages/contacts/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["section_title"], "КОНТАКТЫ")
-        self.assertEqual(response.data["email"], "red.queen.by@gmail.com")
+        self.assertEqual(response.data["section_title"], "Связаться")
+        self.assertEqual(response.data["email"], "editor@example.com")
         self.assertIn("section_intro", response.data)
         self.assertIn("footer_legal_text", response.data)
         self.assertNotIn("form", response.data)
@@ -236,6 +252,47 @@ class PublicApiTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             project.clean()
+
+    def test_external_video_links_are_normalized_for_safe_players(self):
+        cases = {
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ": (
+                "youtube",
+                "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+            ),
+            "https://youtube.com/shorts/dQw4w9WgXcQ": (
+                "youtube",
+                "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+            ),
+            "https://vimeo.com/123456789/privateHash": (
+                "vimeo",
+                "https://player.vimeo.com/video/123456789?dnt=1&h=privateHash",
+            ),
+            "https://cdn.example.com/showreel.mp4?token=signed": ("direct_mp4", None),
+        }
+
+        for url, (provider, embed_url) in cases.items():
+            with self.subTest(url=url):
+                result = external_video(url)
+                self.assertEqual(result["provider"], provider)
+                self.assertEqual(result["embed_url"], embed_url)
+
+    def test_unknown_external_video_link_is_rejected(self):
+        category = ProjectCategory.objects.create(title="Film", slug="invalid-video-film")
+        project = Project(
+            category=category,
+            title="Case",
+            slug="invalid-video-case",
+            external_video_url="https://example.com/watch/123",
+        )
+
+        with self.assertRaises(ValidationError):
+            project.clean()
+
+    def test_empty_database_returns_homepage_not_found(self):
+        response = self.client.get("/api/v1/pages/home/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["detail"], "Главная страница ещё не опубликована.")
 
     def test_dev_media_endpoint_supports_byte_ranges(self):
         media_root = Path(__file__).resolve().parent.parent
@@ -254,36 +311,6 @@ class PublicApiTests(TestCase):
     def test_openapi_and_docs_urls_are_available(self):
         self.assertEqual(self.client.get("/api/schema/").status_code, 200)
         self.assertEqual(self.client.get("/api/docs/").status_code, 200)
-
-    def test_seed_figma_content_preserves_existing_editorial_changes(self):
-        call_command("seed_figma_content", verbosity=0)
-        home_page = HomePage.objects.get()
-        home_page.hero_text = "Текст редактора"
-        home_page.save_revision().publish()
-        call_command("seed_figma_content", verbosity=0)
-
-        home_page.refresh_from_db()
-        self.assertEqual(home_page.hero_title, "ПРОДАКШН\nДЛЯ КИНО И\nРЕКЛАМЫ")
-        self.assertEqual(home_page.hero_title_mobile, "ПРОДАКШН\nДЛЯ КИНО И РЕКЛАМЫ")
-        self.assertEqual(home_page.hero_text, "Текст редактора")
-        self.assertFalse(hasattr(home_page, "projects_title"))
-
-        section_settings = MainPageSectionSettings.objects.get()
-        self.assertEqual(section_settings.projects_title, "НАШИ ПРОЕКТЫ")
-        self.assertTrue(section_settings.projects_page_intro)
-
-        contact_settings = ContactSettings.objects.get()
-        self.assertEqual(contact_settings.email, "red.queen.by@gmail.com")
-        self.assertTrue(contact_settings.footer_legal_text)
-
-        home_response = self.client.get("/api/v1/pages/home/")
-        self.assertEqual(home_response.status_code, 200)
-        self.assertIn("video_url", home_response.data["hero"])
-
-        self.assertEqual(ServiceBlock.objects.filter(title="АРЕНДА").count(), 1)
-        self.assertEqual(ProjectCategory.objects.filter(slug="music-videos", title="КЛИПЫ").count(), 1)
-        self.assertEqual(RentalCategory.objects.filter(slug="camera-equipment").count(), 1)
-        self.assertEqual(RentalItem.objects.filter(slug="avenger-a2033fcb-c-stand-33-black").count(), 1)
 
     def create_rental_item(
         self,

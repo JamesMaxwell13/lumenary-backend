@@ -7,6 +7,8 @@ from wagtail.admin.panels import FieldPanel, InlinePanel, MultiFieldPanel
 from wagtail.images import get_image_model_string
 from wagtail.models import Orderable
 
+from cms.videos import validate_external_video_url
+
 
 class PublishStatus(models.TextChoices):
     DRAFT = "draft", "Черновик"
@@ -60,7 +62,11 @@ class Project(ClusterableModel, models.Model):
         related_name="+",
     )
     video_file = models.FileField("Видео-файл", upload_to="project-videos/", blank=True)
-    external_video_url = models.URLField("Внешняя видео-ссылка", blank=True)
+    external_video_url = models.URLField(
+        "Внешняя видео-ссылка",
+        blank=True,
+        help_text="YouTube, Vimeo или прямая ссылка на MP4-файл.",
+    )
     short_caption = models.CharField("Подпись карточки", max_length=255, blank=True)
     description = models.TextField("Краткое описание", blank=True)
     client = models.CharField("Клиент", max_length=255, blank=True)
@@ -142,6 +148,10 @@ class Project(ClusterableModel, models.Model):
             raise ValidationError(
                 {"external_video_url": "Укажите видео-файл или внешнюю ссылку, но не оба варианта одновременно."}
             )
+        try:
+            validate_external_video_url(self.external_video_url)
+        except ValidationError as error:
+            raise ValidationError({"external_video_url": error.messages}) from error
 
 
 class ProjectGalleryImage(Orderable):

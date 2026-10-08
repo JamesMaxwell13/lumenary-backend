@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from cms.media import video_status
 from cms.models import ContactSettings, HomePage, MainPageSectionSettings
+from cms.videos import video_metadata
 from services.models import ServiceBlock
 
 
@@ -27,13 +28,14 @@ def cached_response(key, builder):
 @api_view(["GET"])
 def home_page(request):
     page = HomePage.objects.live().public().first()
-    section_settings = MainPageSectionSettings.for_request(request)
-    services = ServiceBlock.objects.filter(is_active=True).order_by("sort_order", "id")
     if not page:
         return Response(
             {"detail": "Главная страница ещё не опубликована."},
             status=status.HTTP_404_NOT_FOUND,
         )
+    section_settings = MainPageSectionSettings.for_request(request)
+    services = ServiceBlock.objects.filter(is_active=True).order_by("sort_order", "id")
+    hero_video = video_metadata(page.hero_video_file, page.hero_video_url)
     return Response(
         {
             "hero": {
@@ -42,7 +44,9 @@ def home_page(request):
                 "text": page.hero_text,
                 "tags": page.hero_tags,
                 "image": image_url(page.hero_image),
-                "video_url": page.hero_video_file.url if page.hero_video_file else page.hero_video_url,
+                "video_url": hero_video["url"],
+                "video_provider": hero_video["provider"],
+                "video_embed_url": hero_video["embed_url"],
                 "video_status": video_status(page.hero_video_file, page.hero_video_url),
             },
             "navigation": {

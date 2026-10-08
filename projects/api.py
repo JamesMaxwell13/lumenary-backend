@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from cms.images import image_original_url, image_rendition_url
 from cms.media import video_status
+from cms.videos import video_metadata
 from projects.models import Project, ProjectCategory
 
 
@@ -23,6 +24,8 @@ class ProjectListSerializer(serializers.ModelSerializer):
     category = ProjectCategorySerializer()
     cover_image = serializers.SerializerMethodField()
     video_url = serializers.SerializerMethodField()
+    video_provider = serializers.SerializerMethodField()
+    video_embed_url = serializers.SerializerMethodField()
     video_status = serializers.SerializerMethodField()
 
     class Meta:
@@ -33,6 +36,8 @@ class ProjectListSerializer(serializers.ModelSerializer):
             "category",
             "cover_image",
             "video_url",
+            "video_provider",
+            "video_embed_url",
             "video_status",
             "short_caption",
             "is_featured",
@@ -44,7 +49,21 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.URI)
     def get_video_url(self, obj):
-        return obj.video_file.url if obj.video_file else obj.external_video_url
+        return self._video_metadata(obj)["url"]
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_video_provider(self, obj):
+        return self._video_metadata(obj)["provider"]
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_video_embed_url(self, obj):
+        return self._video_metadata(obj)["embed_url"]
+
+    @staticmethod
+    def _video_metadata(obj):
+        if not hasattr(obj, "_api_video_metadata"):
+            obj._api_video_metadata = video_metadata(obj.video_file, obj.external_video_url)
+        return obj._api_video_metadata
 
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_video_status(self, obj):
