@@ -16,9 +16,9 @@ the frontend repository only builds and updates `FRONTEND_IMAGE`.
 5. Verify `https://DOMAIN/api/v1/health/`, the admin, an image URL, and seeking
    in both the showreel and a project video.
 
-GitHub Actions repeats steps 3-5 on every push to `main`. The VPS `.env` stays
-on the server and is never committed. Required repository secrets are listed in
-the root README.
+This procedure is manual. The release workflow builds and publishes the backend
+image to GHCR, but does not connect to a server. The server `.env` stays outside
+Git and must be prepared before the first deployment.
 
 ## Moving the current content to production
 

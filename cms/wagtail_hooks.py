@@ -14,9 +14,11 @@ from services.models import ServiceBlock
 
 class ServiceBlockViewSet(SnippetViewSet):
     model = ServiceBlock
-    menu_label = "Карточки услуг"
-    menu_name = "service-blocks"
+    menu_label = "Услуги"
+    menu_name = "services-content"
     menu_icon = "list-ul"
+    menu_order = 200
+    add_to_admin_menu = True
     list_display = ["title", "sort_order", "is_active"]
     list_filter = ["is_active"]
     search_fields = ["title", "text"]
@@ -125,14 +127,6 @@ class RentalAttributeViewSet(SnippetViewSet):
     ordering = ["sort_order", "name"]
 
 
-class ServicesGroup(SnippetViewSetGroup):
-    menu_label = "Услуги"
-    menu_name = "services-content"
-    menu_icon = "list-ul"
-    menu_order = 200
-    items = (ServiceBlockViewSet,)
-
-
 class PortfolioGroup(SnippetViewSetGroup):
     menu_label = "Проекты"
     menu_name = "portfolio"
@@ -189,7 +183,7 @@ def register_contacts_menu_item():
 def register_site_copy_menu_item():
     url = reverse("wagtailsettings:edit", args=["cms", "mainpagesectionsettings"])
     return MenuItem(
-        "Тексты сайта",
+        "Заголовки",
         url,
         icon_name="doc-full",
         name="site-copy",
@@ -208,8 +202,8 @@ def arrange_main_menu(request, menu_items):
 
 
 @hooks.register("register_admin_viewset")
-def register_services_group():
-    return ServicesGroup()
+def register_services_viewset():
+    return ServiceBlockViewSet()
 
 
 @hooks.register("register_admin_viewset")

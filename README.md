@@ -1,36 +1,25 @@
 # Lumenary Backend
 
-Backend - это админка и API сайта. Через него редактируются главная страница, услуги, проекты, каталог аренды, контакты и футер.
+Django/Wagtail CMS и REST API для сайта Lumenary. PostgreSQL является источником
+контента; изображения и загруженные видео хранятся локально в разработке или в
+S3-compatible storage в production.
 
-Локальные адреса:
+## Стек
 
-- Админка: http://127.0.0.1:8000/admin/
-- Документация API: http://127.0.0.1:8000/api/docs/
-- Техническая схема API: http://127.0.0.1:8000/api/schema/
+- Python 3.12, Django, Wagtail, Django REST Framework
+- PostgreSQL 16
+- django-storages и S3-compatible object storage
+- Gunicorn, Docker и Docker Compose для контейнерного размещения
 
-## Что установить один раз
+## Локальное окружение
 
-1. Python 3.12 или новее: https://www.python.org/downloads/
-2. Docker Desktop: https://www.docker.com/products/docker-desktop/
-3. Git: https://git-scm.com/downloads
-
-При установке Python включите галочку `Add python.exe to PATH`.
-
-## Первый запуск
-
-Откройте PowerShell в папке проекта:
-
-```powershell
-cd D:\work\Lumenary-web
-```
-
-Запустите базу данных и служебные контейнеры:
+Из корня `Lumenary-web` запустите PostgreSQL и MinIO:
 
 ```powershell
 docker compose up -d postgres minio minio-init
 ```
 
-Перейдите в backend, создайте окружение и установите зависимости:
+Подготовьте backend:
 
 ```powershell
 cd backend
@@ -38,105 +27,92 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-```
-
-Подготовьте пустую базу:
-
-```powershell
 python manage.py migrate
-```
-
-Создайте пользователя для входа в админку:
-
-```powershell
 python manage.py createsuperuser
-```
-
-Запустите backend:
-
-```powershell
 python manage.py runserver 127.0.0.1:8000
 ```
 
-После запуска откройте http://127.0.0.1:8000/admin/ и войдите под созданным логином и паролем.
-Создайте и опубликуйте главную страницу, затем заполните тексты сайта, контакты,
-услуги, проекты и аренду. Пока опубликованной главной страницы нет, frontend
-показывает экран технической недоступности.
+Основные адреса:
 
-## Обычный запуск
+- Wagtail: <http://127.0.0.1:8000/admin/>
+- OpenAPI UI: <http://127.0.0.1:8000/api/docs/>
+- OpenAPI schema: <http://127.0.0.1:8000/api/schema/>
+- Health check: <http://127.0.0.1:8000/api/v1/health/>
 
-Если первый запуск уже был сделан, обычно нужны только эти команды:
+## Конфигурация
 
-```powershell
-cd D:\work\Lumenary-web
-docker compose up -d postgres minio minio-init
-cd backend
-.\.venv\Scripts\Activate.ps1
-python manage.py runserver 127.0.0.1:8000
-```
+`.env.example` содержит локальные значения, а `.env.production.example` — полный
+production-шаблон. Файлы `.env` не коммитятся.
 
-## Где редактировать сайт
+Ключевые группы переменных:
 
-- `Главная`: первый экран, заголовок, текст, теги и showreel.
-- `Услуги`: карточки услуг на главной.
-- `Проекты`: категории, проекты, обложки и видео.
-- `Аренда`: категории, подкатегории, позиции и характеристики.
-- `Контакты`: email, телефон, адрес, соцсети и юридический текст футера.
-- `Тексты сайта`: заголовки, описания страниц и призывы к действию.
+| Группа | Переменные |
+| --- | --- |
+| Django | `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS`, `ADMIN_BASE_URL` |
+| PostgreSQL | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` |
+| S3 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL`, `AWS_S3_PUBLIC_URL` и остальные `AWS_*` |
+| Security | `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_SSL_REDIRECT`, `SECURE_HSTS_*` |
+| Runtime | `CACHE_URL`, `GUNICORN_WORKERS`, `GUNICORN_TIMEOUT` |
 
-Главная страница публикуется кнопкой `Опубликовать`. Проекты и позиции аренды
-показываются на сайте только со статусом `Опубликовано`; новые записи создаются
-черновиками. В настройках и справочниках достаточно нажать `Сохранить`.
+При пустом `AWS_STORAGE_BUCKET_NAME` используется файловое хранилище `media/`.
+При заполненном bucket все новые изображения и видео записываются в S3.
 
-Репозиторий не содержит стартового бизнес-контента. Единственный источник
-содержимого сайта — PostgreSQL; перенос заполненного сайта выполняется дампом
-базы, а изображения и видео переносятся отдельно в S3.
+## Контент и админка
 
-В полях showreel и видео проекта можно загрузить файл либо указать ссылку на
-YouTube, Vimeo или прямую ссылку на MP4. Одновременно использовать файл и
-ссылку нельзя.
+Основное меню Wagtail соответствует структуре сайта:
 
-## Production и S3
+- `Главная` — hero, навигационные подписи, обложка и showreel;
+- `Услуги` — прямой переход к списку карточек услуг;
+- `Проекты` — проекты и их разделы;
+- `Аренда` — позиции, разделы и характеристики;
+- `Контакты` — контакты, соцсети и текст футера;
+- `Заголовки` — заголовки, описания страниц и CTA.
 
-Основной вариант размещения — VPS/Cloud VPS с Docker Compose. Канонические
-файлы, список секретов и инструкция первого запуска находятся в `deploy/` и
-`.env.production.example`. Production требует внешнее S3-compatible хранилище:
-после заполнения `AWS_*` все новые изображения и видео Wagtail загружает прямо
-в bucket, а API возвращает публичный или подписанный URL.
+Главная страница публикуется через Wagtail. Проекты и позиции аренды появляются в
+публичном API только в опубликованном статусе. Репозиторий не содержит seed с
+бизнес-контентом: актуальные тексты и записи находятся в PostgreSQL.
 
-На обычном UNIX shared hosting статический frontend можно загрузить отдельно.
-Backend разворачивайте там только после подтверждения Python 3.12, постоянного
-WSGI-процесса, PostgreSQL, SSH/pip/venv и команды перезапуска приложения.
+Showreel и видео проекта принимают один из источников: загруженный файл, прямую
+MP4-ссылку, YouTube или Vimeo. Одновременное заполнение файла и URL запрещено
+валидацией модели.
 
-GitHub Actions для VPS используют секреты `VPS_HOST`, `VPS_USER`,
-`VPS_SSH_KEY`, `VPS_APP_DIR`, `APP_DOMAIN`, `GHCR_USERNAME` и `GHCR_TOKEN`.
-
-## Проверка
-
-Проверить, что backend настроен правильно:
+## Проверки
 
 ```powershell
 python manage.py check --database default
 python manage.py makemigrations --check --dry-run
 python manage.py spectacular --file openapi-check.yaml --validate
-```
-
-Запустить тесты:
-
-```powershell
 python manage.py test --settings=config.test_settings
 ```
 
-Если тесты не могут создать тестовую базу, дайте пользователю PostgreSQL право создавать базы:
+Тестовому пользователю PostgreSQL нужно право `CREATEDB`. Для локальной роли:
 
 ```sql
 ALTER ROLE "Lumenary" CREATEDB;
 ```
 
-## Если что-то не работает
+## Production и перенос данных
 
-- Docker Desktop должен быть открыт.
-- Проверить контейнеры можно командой `docker compose ps`.
-- Если PowerShell не видит `python`, переустановите Python с галочкой `Add python.exe to PATH`.
-- Если порт `8000` занят, остановите старый backend или запустите временно так: `python manage.py runserver 127.0.0.1:8001`.
-- Если frontend не получает данные, проверьте, что backend запущен именно на `http://127.0.0.1:8000/`.
+Docker-образ собирается из корня backend. Контейнерный стек описан в
+`docker-compose.prod.yml`, а Caddy и операции переноса — в `deploy/README.md`.
+
+PostgreSQL dump переносит записи и пути к медиа, но не сами объекты. Базу нужно
+переносить через `pg_dump`/`pg_restore`, а содержимое локального `media/` или MinIO
+зеркалировать в production bucket с сохранением ключей объектов.
+
+Обычный UNIX shared hosting пригоден для backend только при наличии Python 3.12,
+PostgreSQL, постоянного WSGI-процесса, SSH/pip/venv и документированной команды
+перезапуска приложения. До подтверждения этих возможностей автоматический deploy
+backend отключён.
+
+## CI/CD
+
+`.github/workflows/release.yml` на push в `main` и при ручном запуске:
+
+1. устанавливает зависимости;
+2. выполняет Django checks, проверку миграций и тесты;
+3. собирает Docker-образ;
+4. публикует его в GHCR с тегами commit SHA и `main`.
+
+Публикация использует встроенный `GITHUB_TOKEN`; дополнительные GHCR credentials и
+VPS secrets не требуются. Workflow не разворачивает backend на UNIX-хостинге.

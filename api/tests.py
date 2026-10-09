@@ -17,7 +17,7 @@ from cms.wagtail_hooks import (
     PortfolioGroup,
     RentalCategoryForm,
     RentalGroup,
-    ServicesGroup,
+    ServiceBlockViewSet,
     arrange_main_menu,
     register_contacts_menu_item,
     register_site_copy_menu_item,
@@ -66,7 +66,9 @@ class PublicApiTests(TestCase):
                 self.assertEqual(response.status_code, 200)
 
     def test_wagtail_content_admin_groups_use_plain_russian_labels(self):
-        self.assertEqual(ServicesGroup.menu_label, "Услуги")
+        self.assertEqual(ServiceBlockViewSet.menu_label, "Услуги")
+        self.assertEqual(ServiceBlockViewSet.menu_name, "services-content")
+        self.assertTrue(ServiceBlockViewSet.add_to_admin_menu)
         self.assertEqual(PortfolioGroup.menu_label, "Проекты")
         self.assertEqual(RentalGroup.menu_label, "Аренда")
         self.assertEqual(Project.snippet_viewset.menu_label, "Проекты")
@@ -97,6 +99,7 @@ class PublicApiTests(TestCase):
         self.assertGreater(next(item.order for item in menu_items if item.name == "images"), 500)
         self.assertEqual(contacts_item.url, "/admin/settings/cms/contactsettings/")
         self.assertEqual(site_copy_item.url, "/admin/settings/cms/mainpagesectionsettings/")
+        self.assertEqual(site_copy_item.label, "Заголовки")
 
     def test_health_endpoint_checks_database(self):
         response = self.client.get("/api/v1/health/")

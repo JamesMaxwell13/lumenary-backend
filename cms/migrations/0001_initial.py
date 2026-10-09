@@ -73,8 +73,8 @@ class Migration(migrations.Migration):
                 ('site', models.OneToOneField(editable=False, on_delete=django.db.models.deletion.CASCADE, to='wagtailcore.site')),
             ],
             options={
-                'verbose_name': 'тексты секций главной',
-                'verbose_name_plural': 'тексты секций главной',
+                'verbose_name': 'заголовки',
+                'verbose_name_plural': 'заголовки',
             },
         ),
     ]
