@@ -11,3 +11,6 @@ staticfiles/
 openapi-check.yaml
 *.sqlite3
 .pytest_cache/
+backups/
+certbot/
+.vps-update.lock

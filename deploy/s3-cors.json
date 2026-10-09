@@ -1,9 +1,0 @@
-[
-  {
-    "AllowedOrigins": ["https://example.com", "https://www.example.com"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["Range", "Origin", "Content-Type"],
-    "ExposeHeaders": ["Accept-Ranges", "Content-Length", "Content-Range", "Content-Type", "ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
